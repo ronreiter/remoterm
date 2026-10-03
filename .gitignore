@@ -51,3 +51,6 @@ client/test-results/
 
 # Internal design docs (brainstorming specs)
 docs/superpowers/
+
+# cloudflared binaries (fetched by client/scripts/fetch-cloudflared.sh)
+client/resources/bin/

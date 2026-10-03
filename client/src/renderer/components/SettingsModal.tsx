@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useStore } from '../store'
 import { CODING_TOOLS, type CodingTool, type RemotermSettings } from '../services/api'
 import { THEMES, type ThemeId } from '../services/themes'
+import RemoteAccessSection from './RemoteAccessSection'
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings)
@@ -30,7 +31,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="w-[520px] bg-terminal-bg border border-terminal-border rounded-xl p-6 flex flex-col gap-6 shadow-2xl"
+        className="w-[520px] max-h-[90vh] overflow-y-auto bg-terminal-bg border border-terminal-border rounded-xl p-6 flex flex-col gap-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -142,6 +143,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <option value={50000}>50,000</option>
           </select>
         </label>
+
+        <RemoteAccessSection />
 
         <div className="flex gap-3 justify-end">
           <button

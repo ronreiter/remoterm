@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Session, useStore, COLOR_HEX } from '../store'
 import SessionContextMenu from './SessionContextMenu'
 import ConfirmDialog from './ConfirmDialog'
+import RemoteViewerDot from './RemoteViewerDot'
 
 interface Props {
   session: Session
@@ -119,6 +120,8 @@ export default function SessionItem({ session, isActive, onClick, onRename, onDe
           )}
         </div>
       )}
+
+      <RemoteViewerDot sessionId={session.id} />
 
       <button
         onClick={(e) => {
