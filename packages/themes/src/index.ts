@@ -1,4 +1,29 @@
-import type { ITheme } from '@xterm/xterm'
+/** Structurally compatible with xterm's ITheme (kept local so this package has no dependencies). */
+export interface TerminalTheme {
+  foreground?: string
+  background?: string
+  cursor?: string
+  cursorAccent?: string
+  selectionBackground?: string
+  selectionForeground?: string
+  selectionInactiveBackground?: string
+  black?: string
+  red?: string
+  green?: string
+  yellow?: string
+  blue?: string
+  magenta?: string
+  cyan?: string
+  white?: string
+  brightBlack?: string
+  brightRed?: string
+  brightGreen?: string
+  brightYellow?: string
+  brightBlue?: string
+  brightMagenta?: string
+  brightCyan?: string
+  brightWhite?: string
+}
 
 export type ThemeId = 'dark1' | 'dark2' | 'light'
 
@@ -6,7 +31,7 @@ export interface AppTheme {
   id: ThemeId
   name: string
   description: string
-  terminal: ITheme
+  terminal: TerminalTheme
   ui: {
     bg: string
     surface: string
