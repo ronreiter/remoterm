@@ -62,12 +62,12 @@ export function cfStub() {
       .intercept({ path: CF_BASE + path, method, headers: { authorization: 'Bearer cf-token' } })
       .reply(
         status,
-        (o: { method: string; path: string; body?: string | null }) => {
+        ((o: { method: string; path: string; body?: string | null }) => {
           calls.push({ method: o.method, path: o.path.replace(CF_BASE, ''), body: o.body ? JSON.parse(o.body) : undefined });
           return status < 300
             ? { success: true, errors: [], result }
             : { success: false, errors: [{ code: 1000, message: errMsg }], result: null };
-        },
+        }) as any,
         { headers: { 'content-type': 'application/json' } },
       );
   };
