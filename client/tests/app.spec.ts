@@ -10,8 +10,14 @@ const ELECTRON_API_MOCK = `
 
   window.__remote = {
     status: { signedIn: false, enabled: false, busy: false, deviceName: 'my-mac', preventSleep: false, tunnel: { state: 'stopped' } },
-    statusCbs: [], viewerCbs: [], viewers: {}, calls: []
+    statusCbs: [], viewerCbs: [], viewers: {}, calls: [],
+    // remote client (tabs on other devices)
+    list: { ok: true, devices: [] }, listCalls: 0, outCbs: [], tabStatusCbs: []
   };
+  // Test hooks for the remote client: the device list, and output / status events from the main process.
+  window.__setRemoteList = (list) => { window.__remote.list = list; };
+  window.__pushTabOutput = (e) => { for (const cb of window.__remote.outCbs) cb(e); };
+  window.__pushTabStatus = (e) => { for (const cb of window.__remote.tabStatusCbs) cb(e); };
   // Test hooks: merge a partial status / viewer map and notify the renderer, like main-process IPC events.
   window.__pushRemote = (patch) => {
     window.__remote.status = { ...window.__remote.status, ...patch };
@@ -72,6 +78,19 @@ const ELECTRON_API_MOCK = `
       return () => { window.__remote.viewerCbs = window.__remote.viewerCbs.filter(c => c !== cb); };
     },
     reportSessionBusy: (id, busy) => { window.__remote.calls.push(['busy', id, busy]); },
+    remoteList: async () => { window.__remote.listCalls++; return window.__remote.list; },
+    remoteAttach: async (req) => { window.__remote.calls.push(['attach', req]); },
+    remoteTabInput: (id, data) => { window.__remote.calls.push(['tabInput', id, data]); },
+    remoteTabResize: (id, cols, rows) => { window.__remote.calls.push(['tabResize', id, cols, rows]); },
+    remoteDetach: (id) => { window.__remote.calls.push(['detach', id]); },
+    onRemoteTabOutput: (cb) => {
+      window.__remote.outCbs.push(cb);
+      return () => { window.__remote.outCbs = window.__remote.outCbs.filter(c => c !== cb); };
+    },
+    onRemoteTabStatus: (cb) => {
+      window.__remote.tabStatusCbs.push(cb);
+      return () => { window.__remote.tabStatusCbs = window.__remote.tabStatusCbs.filter(c => c !== cb); };
+    },
 
     listClaudeSessions: async () => [
       {
@@ -675,5 +694,288 @@ test.describe('Remote viewers indicator', () => {
       m.useStore.getState().markSessionIdle(sid)
     }, id)
     expect(await remoteCalls(page)).toContainEqual(['busy', id, false])
+  })
+})
+
+// ─── Remote sidebar group and remote tabs ───
+
+const NOW_S = () => Math.floor(Date.now() / 1000)
+const DEVICES = (nowS: number) => ({
+  ok: true,
+  devices: [
+    {
+      id: 'dev1',
+      name: 'studio',
+      online: true,
+      lastSeen: nowS,
+      sessions: [
+        { id: 'rs1', name: 'api work', tool: 'claude', cwd: '/Users/ron/api', folder: null, color: null, running: true, busy: false, cols: 100, rows: 30 },
+        { id: 'rs2', name: 'web', tool: 'claude', cwd: '/Users/ron/web', folder: null, color: null, running: true, busy: true, cols: 100, rows: 30 }
+      ]
+    },
+    { id: 'dev2', name: 'laptop', online: false, lastSeen: nowS - 7200, sessions: [] }
+  ]
+})
+
+async function setupRemote(page: Page, opts: { signedIn?: boolean } = { signedIn: true }) {
+  await page.addInitScript(ELECTRON_API_MOCK)
+  await page.addInitScript(
+    ([signedIn, list]) => {
+      ;(window as any).__remote.status = { ...(window as any).__remote.status, signedIn, login: signedIn ? 'octocat' : undefined }
+      ;(window as any).__setRemoteList(list)
+    },
+    [opts.signedIn !== false, DEVICES(NOW_S())] as const
+  )
+  await page.goto('/')
+  await page.waitForSelector('text=Remoterm')
+}
+
+const rcalls = (page: Page) => page.evaluate(() => (window as any).__remote.calls as any[])
+const attachCalls = async (page: Page) => (await rcalls(page)).filter((c) => c[0] === 'attach')
+
+async function openRemoteSession(page: Page, device = 'dev1', session = 'rs1') {
+  await page.getByTestId(`remote-session-${device}-${session}`).click()
+  await expect(page.getByTestId('remote-badge').first()).toBeVisible()
+}
+
+test.describe('Remote sidebar group', () => {
+  test('is hidden while signed out', async ({ page }) => {
+    await setupRemote(page, { signedIn: false })
+    await page.waitForTimeout(150)
+    await expect(page.getByTestId('remote-group')).toHaveCount(0)
+    expect(await page.evaluate(() => (window as any).__remote.listCalls)).toBe(0)
+  })
+
+  test('appears after signing in and lists devices with their running sessions', async ({ page }) => {
+    await setupRemote(page, { signedIn: false })
+    await expect(page.getByTestId('remote-group')).toHaveCount(0)
+    await page.evaluate(() => (window as any).__pushRemote({ signedIn: true, login: 'octocat' }))
+    await expect(page.getByTestId('remote-group')).toBeVisible()
+    await expect(page.getByTestId('remote-device-state-dev1')).toHaveText('online')
+    await expect(page.getByTestId('remote-session-dev1-rs1')).toContainText('api work')
+    await expect(page.getByTestId('remote-session-dev1-rs2')).toContainText('web')
+    // offline device: greyed with last seen, no sessions
+    await expect(page.getByTestId('remote-device-state-dev2')).toHaveText('last seen 2 h ago')
+    await expect(page.getByTestId('remote-device-dev2')).toHaveClass(/opacity-60/)
+    await expect(page.locator('[data-testid^="remote-session-dev2"]')).toHaveCount(0)
+  })
+
+  test('polls every 15 seconds while visible', async ({ page }) => {
+    await page.clock.install()
+    await setupRemote(page)
+    await expect(page.getByTestId('remote-session-dev1-rs1')).toBeVisible()
+    const before = await page.evaluate(() => (window as any).__remote.listCalls)
+    expect(before).toBeGreaterThanOrEqual(1)
+    await page.evaluate(
+      (d) => (window as any).__setRemoteList({ ok: true, devices: [{ ...d.devices[0], name: 'studio-2', sessions: [] }] }),
+      DEVICES(NOW_S())
+    )
+    await page.clock.runFor(14_000)
+    expect(await page.evaluate(() => (window as any).__remote.listCalls)).toBe(before)
+    await page.clock.runFor(2_000)
+    await expect(page.getByText('studio-2')).toBeVisible()
+    expect(await page.evaluate(() => (window as any).__remote.listCalls)).toBe(before + 1)
+  })
+
+  test('a failed refresh keeps the last known devices and flags it', async ({ page }) => {
+    await page.clock.install()
+    await setupRemote(page)
+    await expect(page.getByTestId('remote-session-dev1-rs1')).toBeVisible()
+    await page.evaluate(() => (window as any).__setRemoteList({ ok: false, error: 'network' }))
+    await page.clock.runFor(15_500)
+    await expect(page.getByTestId('remote-list-error')).toBeVisible()
+    await expect(page.getByTestId('remote-session-dev1-rs1')).toBeVisible()
+  })
+
+  test('signing out hides the group', async ({ page }) => {
+    await setupRemote(page)
+    await expect(page.getByTestId('remote-group')).toBeVisible()
+    await page.evaluate(() => (window as any).__pushRemote({ signedIn: false }))
+    await expect(page.getByTestId('remote-group')).toHaveCount(0)
+  })
+})
+
+test.describe('Remote tabs', () => {
+  test('clicking a session opens a remote tab with a "remote · device" badge and attaches in control mode', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    await expect(page.getByTestId('remote-badge')).toHaveText('remote · studio')
+    await expect(page.getByTestId('remote-tab-header')).toContainText('remote · studio')
+    await expect(page.locator('.xterm')).toBeVisible()
+
+    const attach = (await attachCalls(page))[0]
+    expect(attach[1]).toMatchObject({ deviceId: 'dev1', sessionId: 'rs1', mode: 'control' })
+    await expect(page.getByTestId('remote-mode-control')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('remote-mode-view')).toHaveAttribute('aria-pressed', 'false')
+
+    // never a local PTY, never listed as a local session
+    expect(await page.evaluate(() => (window as any).__ptyInstances.size)).toBe(0)
+    await expect(page.locator(SIDEBAR_SESSION)).toHaveCount(0)
+    await expect(page.locator('text=No session selected')).not.toBeVisible()
+  })
+
+  test('opening the same session again focuses the existing tab', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    await page.getByTestId('remote-session-dev1-rs2').click()
+    await expect(page.getByTestId('remote-badge')).toHaveCount(2)
+    await page.getByTestId('remote-session-dev1-rs1').click()
+    await expect(page.getByTestId('remote-badge')).toHaveCount(2)
+  })
+
+  test('status moves from connecting to connected; snapshots and output render without busy reports', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    await expect(page.getByTestId('remote-tab-status')).toHaveText('Connecting…')
+    const tabId = (await attachCalls(page))[0][1].tabId
+    await page.evaluate((id) => {
+      ;(window as any).__pushTabStatus({ tabId: id, status: 'live' })
+      ;(window as any).__pushTabOutput({ tabId: id, kind: 'snapshot', data: 'hello remote', cols: 100, rows: 30 })
+      ;(window as any).__pushTabOutput({ tabId: id, kind: 'data', data: new TextEncoder().encode('x'.repeat(5000)) })
+    }, tabId)
+    await expect(page.getByTestId('remote-tab-status')).toHaveText('Connected')
+    await expect(page.getByTestId('remote-connecting')).toHaveCount(0)
+    await page.waitForTimeout(300)
+    expect((await rcalls(page)).filter((c) => c[0] === 'busy')).toHaveLength(0)
+    // a second snapshot (e.g. after another client resized) is a full reset, not an append
+    await page.evaluate(
+      (id) => (window as any).__pushTabOutput({ tabId: id, kind: 'snapshot', data: 'second', cols: 80, rows: 24 }),
+      tabId
+    )
+    await expect(page.locator('.xterm-rows')).toContainText('second')
+    await expect(page.locator('.xterm-rows')).not.toContainText('hello remote')
+  })
+
+  test('control mode forwards typing; View mode re-attaches read-only and drops input', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const tabId = (await attachCalls(page))[0][1].tabId
+    await page.evaluate((id) => (window as any).__pushTabStatus({ tabId: id, status: 'live' }), tabId)
+    await page.evaluate((id) => (window as any).__pushTabOutput({ tabId: id, kind: 'snapshot', data: '$ ', cols: 100, rows: 30 }), tabId)
+
+    await page.locator('.xterm-helper-textarea').first().focus()
+    await page.keyboard.type('ls')
+    await expect
+      .poll(async () => (await rcalls(page)).filter((c) => c[0] === 'tabInput').map((c) => c[2]).join(''))
+      .toBe('ls')
+
+    await page.getByTestId('remote-mode-view').click()
+    await expect(page.getByTestId('remote-mode-view')).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(async () => (await attachCalls(page)).length).toBe(2)
+    expect((await attachCalls(page))[1][1]).toMatchObject({ tabId, mode: 'view' })
+
+    const inputsBefore = (await rcalls(page)).filter((c) => c[0] === 'tabInput').length
+    await page.keyboard.type('pwd')
+    await page.waitForTimeout(100)
+    expect((await rcalls(page)).filter((c) => c[0] === 'tabInput')).toHaveLength(inputsBefore)
+
+    await page.getByTestId('remote-mode-control').click()
+    await expect.poll(async () => (await attachCalls(page)).length).toBe(3)
+    expect((await attachCalls(page))[2][1]).toMatchObject({ mode: 'control' })
+  })
+
+  test('ended (4404) shows the session-ended state and the tab can be closed', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const tabId = (await attachCalls(page))[0][1].tabId
+    await page.evaluate((id) => (window as any).__pushTabStatus({ tabId: id, status: 'ended', code: 4404 }), tabId)
+    await expect(page.getByTestId('remote-overlay')).toContainText('Session ended (4404)')
+    await expect(page.getByTestId('remote-mode-view')).toBeDisabled()
+    await page.getByRole('button', { name: 'Close tab' }).click()
+    await expect(page.getByTestId('remote-badge')).toHaveCount(0)
+    expect((await rcalls(page)).filter((c) => c[0] === 'detach').map((c) => c[1])).toContain(tabId)
+    const saved = await page.evaluate(() => (window as any).__savedSessions)
+    expect(saved.sessions).toHaveLength(0)
+  })
+
+  test('sign-in needed (4401) and offline states', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const tabId = (await attachCalls(page))[0][1].tabId
+    await page.evaluate((id) => (window as any).__pushTabStatus({ tabId: id, status: 'offline' }), tabId)
+    await expect(page.getByTestId('remote-tab-status')).toContainText('Offline')
+    await expect(page.getByTestId('remote-connecting')).toContainText('studio is offline')
+    await page.evaluate((id) => (window as any).__pushTabStatus({ tabId: id, status: 'auth', code: 4401 }), tabId)
+    await expect(page.getByTestId('remote-tab-status')).toHaveText('Sign-in needed')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    expect(await remoteCalls(page)).toContainEqual(['signIn'])
+    await page.getByRole('button', { name: 'Retry' }).click()
+    await expect.poll(async () => (await attachCalls(page)).length).toBe(2)
+  })
+
+  test('closing the tab detaches without touching local PTYs', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const tabId = (await attachCalls(page))[0][1].tabId
+    await page.keyboard.press('Meta+w')
+    await expect(page.getByTestId('remote-badge')).toHaveCount(0)
+    await expect.poll(async () => (await rcalls(page)).filter((c) => c[0] === 'detach').map((c) => c[1])).toContain(tabId)
+  })
+
+  test('a local session and a remote tab coexist; the local one still spawns its own PTY', async ({ page }) => {
+    await setupRemote(page)
+    await page.getByRole('button', { name: '+ New Session' }).click()
+    await page.waitForTimeout(150)
+    await openRemoteSession(page)
+    expect(await page.evaluate(() => (window as any).__ptyInstances.size)).toBe(1)
+    await expect(page.locator(SIDEBAR_SESSION)).toHaveCount(1)
+    await expect(page.getByTestId('remote-badge')).toHaveCount(1)
+  })
+})
+
+test.describe('Remote tab persistence (reattach if still running)', () => {
+  async function reloadWithSaved(page: Page) {
+    const saved = await page.evaluate(() => (window as any).__savedSessions)
+    await page.addInitScript((data) => {
+      window.__savedSessions = JSON.parse(data)
+    }, JSON.stringify(saved))
+    await page.reload()
+    await page.waitForSelector('text=Remoterm')
+    return saved
+  }
+
+  test('open remote tabs are saved as reattach entries and reattach after a restart', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const saved = await reloadWithSaved(page)
+    expect(saved.sessions[0]).toMatchObject({
+      kind: 'remote',
+      status: 'open',
+      remote: { deviceId: 'dev1', sessionId: 'rs1', deviceName: 'studio' }
+    })
+    expect(saved.openTabs).toEqual([saved.sessions[0].id])
+
+    await expect(page.getByTestId('remote-badge')).toHaveText('remote · studio')
+    await expect.poll(async () => (await attachCalls(page)).length).toBe(1)
+    expect((await attachCalls(page))[0][1]).toMatchObject({
+      tabId: saved.sessions[0].id,
+      deviceId: 'dev1',
+      sessionId: 'rs1',
+      mode: 'control'
+    })
+    expect(await page.evaluate(() => (window as any).__ptyInstances.size)).toBe(0)
+  })
+
+  test('if the session is gone on restart (4404) the tab is dropped quietly', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    const saved = await reloadWithSaved(page)
+    await expect(page.getByTestId('remote-badge')).toBeVisible()
+    await page.evaluate((id) => (window as any).__pushTabStatus({ tabId: id, status: 'ended', code: 4404 }), saved.sessions[0].id)
+    await expect(page.getByTestId('remote-badge')).toHaveCount(0)
+    await expect(page.getByTestId('remote-overlay')).toHaveCount(0)
+    await expect(page.locator('text=No session selected')).toBeVisible()
+    const after = await page.evaluate(() => (window as any).__savedSessions)
+    expect(after.sessions).toHaveLength(0)
+    expect(after.openTabs).toHaveLength(0)
+  })
+
+  test('closed remote tabs are not restored', async ({ page }) => {
+    await setupRemote(page)
+    await openRemoteSession(page)
+    await page.keyboard.press('Meta+w')
+    await expect(page.getByTestId('remote-badge')).toHaveCount(0)
+    await reloadWithSaved(page)
+    await expect(page.getByTestId('remote-badge')).toHaveCount(0)
   })
 })
