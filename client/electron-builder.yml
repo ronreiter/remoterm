@@ -3,6 +3,10 @@ productName: Moltty
 directories:
   buildResources: resources
   output: release
+extraResources:
+  # Arch-specific cloudflared (run `npm run fetch-cloudflared` first); notarized with the app.
+  - from: resources/bin/cloudflared-darwin-${arch}
+    to: bin/cloudflared
 mac:
   target: dmg
   icon: resources/icon.icns
@@ -12,6 +16,9 @@ mac:
     - name: Moltty Auth
       schemes:
         - moltty
+    - name: Remoterm Auth
+      schemes:
+        - remoterm
 dmg:
   contents:
     - x: 130
