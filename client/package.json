@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@types/ssh2": "^1.15.6",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-serialize": "^0.13.0",
@@ -30,6 +31,7 @@
     "node-pty": "^1.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "ssh2": "^1.17.0",
     "ws": "^8.19.0",
     "zustand": "^4.5.5"
   },
