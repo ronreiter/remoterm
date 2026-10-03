@@ -11,6 +11,23 @@ const ELECTRON_API_MOCK = `
   window.electronAPI = {
     loadSessions: async () => window.__savedSessions,
     saveSessions: async (data) => { window.__savedSessions = JSON.parse(data); },
+    loadSettings: async () => window.__savedSettings || { codingTool: 'claude', loadZshrc: true, notifications: false, autoUpdate: false },
+    saveSettings: async (data) => { window.__savedSettings = JSON.parse(data); },
+    openPath: async () => {},
+    onClaudeSessionDetected: () => () => {},
+    onToolSessionDetected: () => () => {},
+    getGitBranch: async () => null,
+    createGitWorktree: async () => ({ ok: false, error: 'mock' }),
+    readFile: async () => ({ ok: false, error: 'mock' }),
+    writeFile: async () => ({ ok: true }),
+    getToolSessionSummary: async () => '',
+    showNotification: () => {},
+    onFocusSession: () => () => {},
+    sendFileDrop: () => {},
+    setActiveSessionMain: () => {},
+    getPathForFile: () => '',
+    forceQuit: () => {},
+    onQuitConfirm: () => () => {},
 
     listClaudeSessions: async () => [
       {
@@ -198,7 +215,7 @@ test.describe('Tab management', () => {
     await page.getByRole('button', { name: '+ New Session' }).click()
     await page.waitForTimeout(100)
 
-    const tabs = page.locator('[draggable="true"]')
+    const tabs = page.locator('.titlebar-drag [draggable="true"]')
     await expect(tabs).toHaveCount(1)
   })
 
@@ -208,13 +225,13 @@ test.describe('Tab management', () => {
     await page.getByRole('button', { name: '+ New Session' }).click()
     await page.waitForTimeout(100)
 
-    const tab = page.locator('[draggable="true"]').first()
+    const tab = page.locator('.titlebar-drag [draggable="true"]').first()
     await tab.hover()
 
     const closeBtn = tab.locator('button')
     await closeBtn.click()
 
-    await expect(page.locator('[draggable="true"]')).toHaveCount(0)
+    await expect(page.locator('.titlebar-drag [draggable="true"]')).toHaveCount(0)
     await expect(page.locator('text=No session selected')).toBeVisible()
   })
 
@@ -226,7 +243,7 @@ test.describe('Tab management', () => {
     await page.getByRole('button', { name: '+ New Session' }).click()
     await page.waitForTimeout(100)
 
-    const tabs = page.locator('[draggable="true"]')
+    const tabs = page.locator('.titlebar-drag [draggable="true"]')
     await expect(tabs).toHaveCount(2)
 
     // Click the first tab
@@ -250,7 +267,7 @@ test.describe('Session rename', () => {
     const sessionItem = page.locator(SIDEBAR_SESSION).first()
     await sessionItem.dblclick()
 
-    const input = page.locator('input[class*="border-terminal-accent"]')
+    const input = page.locator('input[class*="border-terminal-accent"]:not([placeholder])')
     await expect(input).toBeVisible()
   })
 
@@ -263,7 +280,7 @@ test.describe('Session rename', () => {
     const sessionItem = page.locator(SIDEBAR_SESSION).first()
     await sessionItem.dblclick()
 
-    const input = page.locator('input[class*="border-terminal-accent"]')
+    const input = page.locator('input[class*="border-terminal-accent"]:not([placeholder])')
     await input.fill('My Renamed Session')
     await input.press('Enter')
 
@@ -280,7 +297,7 @@ test.describe('Session rename', () => {
     const sessionItem = page.locator(SIDEBAR_SESSION).first()
     await sessionItem.dblclick()
 
-    const input = page.locator('input[class*="border-terminal-accent"]')
+    const input = page.locator('input[class*="border-terminal-accent"]:not([placeholder])')
     await input.fill('Should Not Save')
     await input.press('Escape')
 
@@ -302,7 +319,7 @@ test.describe('Session deletion', () => {
     const sessionItem = page.locator(SIDEBAR_SESSION).first()
     await sessionItem.hover()
 
-    const deleteBtn = sessionItem.locator('button[title="Delete session"]')
+    const deleteBtn = sessionItem.locator('button[title="Remove session"]')
     await expect(deleteBtn).toBeVisible()
   })
 
@@ -315,8 +332,9 @@ test.describe('Session deletion', () => {
     const sessionItem = page.locator(SIDEBAR_SESSION).first()
     await sessionItem.hover()
 
-    const deleteBtn = sessionItem.locator('button[title="Delete session"]')
+    const deleteBtn = sessionItem.locator('button[title="Remove session"]')
     await deleteBtn.click()
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
 
     await expect(page.locator('text=No sessions yet')).toBeVisible()
     await expect(page.locator('text=No session selected')).toBeVisible()
