@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as nodePty from 'node-pty'
 import WebSocket from 'ws'
-import { Client, utils, type ClientChannel } from 'ssh2'
+import { BaseAgent, Client, utils, type ClientChannel, type ParsedKey } from 'ssh2'
 import { encodeMessage } from '@remoterm/protocol'
 import { AgentServer, type SessionMeta } from './agentServer'
 import { AgentAuth } from './auth'
@@ -182,6 +182,31 @@ describe('SSH over /ws/ssh', () => {
   it('rejects an unlisted key', async () => {
     addSession('s1', 'api')
     await expect(connect({ username: 'api', privateKey: otherKey.private })).rejects.toThrow(/authentication methods failed/i)
+    expect(hub.remoteCount('s1')).toBe(0)
+  })
+
+  it('rejects a listed public key whose signature was made by a different private key', async () => {
+    addSession('s1', 'api')
+    // Offers the owner's (public, GitHub-listed) key but signs with an unrelated key.
+    class ForgingAgent extends BaseAgent {
+      getIdentities(cb: (err: Error | null, keys?: ParsedKey[]) => void): void {
+        cb(null, [utils.parseKey(userKey.public) as ParsedKey])
+      }
+      sign(_pub: ParsedKey, data: Buffer, _opts: unknown, cb?: (err: Error | null, sig?: Buffer) => void): void {
+        const done = (typeof _opts === 'function' ? _opts : cb) as (err: Error | null, sig?: Buffer) => void
+        done(null, (utils.parseKey(otherKey.private) as ParsedKey).sign(data))
+      }
+    }
+    const ws = await openWs()
+    const client = new Client()
+    clients.push(client)
+    await expect(
+      new Promise<void>((res, rej) => {
+        client.once('ready', () => res())
+        client.once('error', rej)
+        client.connect({ sock: new WsDuplex(ws) as never, username: 'api', agent: new ForgingAgent() as never })
+      })
+    ).rejects.toThrow(/authentication methods failed/i)
     expect(hub.remoteCount('s1')).toBe(0)
   })
 

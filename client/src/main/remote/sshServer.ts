@@ -1,6 +1,6 @@
 import type { Duplex } from 'stream'
 import { StringDecoder } from 'string_decoder'
-import { Server, type AuthContext, type Connection, type ServerChannel, type Session } from 'ssh2'
+import { Server, utils, type AuthContext, type Connection, type ServerChannel, type Session } from 'ssh2'
 import type { AttachMode, SessionInfo } from '@remoterm/protocol'
 import type { GithubKeys } from './githubKeys'
 import type { HubClient, HubHandle, PtyHub } from './ptyHub'
@@ -74,7 +74,18 @@ export class SshService {
       if (!login) return ctx.reject(['publickey'])
       this.o.keys
         .isAllowed(login, ctx.key.data)
-        .then((ok) => (ok ? ctx.accept() : ctx.reject(['publickey'])))
+        .then((ok) => {
+          if (!ok) return ctx.reject(['publickey'])
+          // No signature = the client is only asking whether this key is acceptable.
+          if (!ctx.signature) return ctx.accept()
+          // Otherwise it must prove possession of the matching private key.
+          const parsed = utils.parseKey(ctx.key.data)
+          const valid =
+            !(parsed instanceof Error) &&
+            !Array.isArray(parsed) &&
+            parsed.verify(ctx.blob as Buffer, ctx.signature, ctx.hashAlgo) === true
+          return valid ? ctx.accept() : ctx.reject(['publickey'])
+        })
         .catch(() => ctx.reject(['publickey']))
     })
 
