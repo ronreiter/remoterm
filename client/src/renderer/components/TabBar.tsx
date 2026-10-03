@@ -106,7 +106,7 @@ export default function TabBar() {
         {/* Right-side buttons */}
         <div className="titlebar-no-drag flex items-center gap-1 px-3 pb-1.5 flex-shrink-0">
           <button
-            onClick={() => window.electronAPI.openExternal('https://github.com/ronreiter/moltty')}
+            onClick={() => window.electronAPI.openExternal('https://github.com/ronreiter/remoterm')}
             className="p-1.5 rounded-md text-terminal-subtext hover:text-terminal-text hover:bg-terminal-bg/50 transition-colors"
             title="Star on GitHub"
           >
@@ -117,7 +117,7 @@ export default function TabBar() {
           <button
             onClick={() => setShowAbout(true)}
             className="p-1.5 rounded-md text-terminal-subtext hover:text-terminal-text hover:bg-terminal-bg/50 transition-colors"
-            title="About Moltty"
+            title="About Remoterm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -133,15 +133,15 @@ export default function TabBar() {
             className="w-[360px] bg-terminal-bg border border-terminal-border rounded-xl p-6 flex flex-col items-center gap-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <img src={iconUrl} alt="Moltty" className="w-16 h-16 rounded-xl" />
-            <h2 className="text-xl font-bold text-terminal-text">Moltty</h2>
+            <img src={iconUrl} alt="Remoterm" className="w-16 h-16 rounded-xl" />
+            <h2 className="text-xl font-bold text-terminal-text">Remoterm</h2>
             <p className="text-sm text-terminal-subtext text-center">
               A terminal client for AI coding tools.
             </p>
             <p className="text-xs text-terminal-subtext">Version {__APP_VERSION__}</p>
             <button
               onClick={() => {
-                window.electronAPI.openExternal('https://github.com/ronreiter/moltty')
+                window.electronAPI.openExternal('https://github.com/ronreiter/remoterm')
                 setShowAbout(false)
               }}
               className="px-4 py-2 text-sm font-semibold bg-terminal-accent text-terminal-bg rounded-lg hover:opacity-90 transition-opacity"

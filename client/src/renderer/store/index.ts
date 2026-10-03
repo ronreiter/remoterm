@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MolttySettings } from '../services/api'
+import type { RemotermSettings } from '../services/api'
 
 export type ColorLabel = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink'
 
@@ -95,7 +95,7 @@ interface AppState {
   editorFilePath: string | null
   editorLine: number | null
   hydrated: boolean
-  settings: MolttySettings | null
+  settings: RemotermSettings | null
   settingsLoaded: boolean
   fontSize: number
 
@@ -130,7 +130,7 @@ interface AppState {
   renameFolder: (id: string, name: string) => void
   toggleFolder: (id: string) => void
   setSessionFolder: (sessionId: string, folderId: string | undefined) => void
-  setSettings: (settings: MolttySettings) => void
+  setSettings: (settings: RemotermSettings) => void
   setFontSize: (size: number) => void
 }
 

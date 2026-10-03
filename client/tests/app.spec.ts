@@ -86,7 +86,7 @@ async function setupPage(page: Page) {
   await page.addInitScript(ELECTRON_API_MOCK)
   await page.addInitScript(() => localStorage.clear())
   await page.goto('/')
-  await page.waitForSelector('text=Moltty')
+  await page.waitForSelector('text=Remoterm')
 }
 
 const SIDEBAR_SESSION = '[class*="rounded-lg"][class*="cursor-pointer"][class*="gap-3"]'
@@ -96,7 +96,7 @@ const SIDEBAR_SESSION = '[class*="rounded-lg"][class*="cursor-pointer"][class*="
 test.describe('Empty state', () => {
   test('shows sidebar with title, new session button, and tabs', async ({ page }) => {
     await setupPage(page)
-    await expect(page.locator('text=Moltty')).toBeVisible()
+    await expect(page.locator('text=Remoterm')).toBeVisible()
     await expect(page.getByRole('button', { name: '+ New Session' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sessions' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'History' })).toBeVisible()
@@ -169,7 +169,7 @@ test.describe('Session sorting (open on top, closed on bottom)', () => {
 
     // Kill the first session's PTY to make it "closed"
     const firstSessionId = await page.evaluate(() => {
-      const raw = localStorage.getItem('moltty:local-sessions')
+      const raw = localStorage.getItem('remoterm:local-sessions')
       if (raw) {
         const data = JSON.parse(raw)
         return data.sessions[0]?.id
@@ -452,7 +452,7 @@ test.describe('Persistence', () => {
     // Inject the electronAPI mock for all navigations (__savedSessions survives in addInitScript context)
     await page.addInitScript(ELECTRON_API_MOCK)
     await page.goto('/')
-    await page.waitForSelector('text=Moltty')
+    await page.waitForSelector('text=Remoterm')
     await page.waitForTimeout(200)
 
     await page.getByRole('button', { name: '+ New Session' }).click()
@@ -471,7 +471,7 @@ test.describe('Persistence', () => {
     }, sessionsJson)
 
     await page.reload()
-    await page.waitForSelector('text=Moltty')
+    await page.waitForSelector('text=Remoterm')
     await page.waitForTimeout(200)
 
     // Session should still be in the sidebar
