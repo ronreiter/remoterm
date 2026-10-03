@@ -90,6 +90,8 @@ interface AppState {
   loadedSessionIds: Set<string>
   activeTabIds: Set<string>
   busySessionIds: Set<string>
+  // sessionId -> number of remote clients currently attached (host agent)
+  remoteViewerCounts: Record<string, number>
   lastFinishedAt: Record<string, number>
   restartCounters: Record<string, number>
   editorFilePath: string | null
@@ -132,6 +134,7 @@ interface AppState {
   setSessionFolder: (sessionId: string, folderId: string | undefined) => void
   setSettings: (settings: MolttySettings) => void
   setFontSize: (size: number) => void
+  setRemoteViewerCounts: (counts: Record<string, number>) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -142,6 +145,7 @@ export const useStore = create<AppState>((set) => ({
   loadedSessionIds: new Set<string>(),
   activeTabIds: new Set<string>(),
   busySessionIds: new Set<string>(),
+  remoteViewerCounts: {},
   lastFinishedAt: {},
   restartCounters: {},
   editorFilePath: null,
@@ -301,6 +305,8 @@ export const useStore = create<AppState>((set) => ({
       next.delete(id)
       return { activeTabIds: next }
     }),
+
+  setRemoteViewerCounts: (counts) => set({ remoteViewerCounts: counts }),
 
   markSessionBusy: (id) =>
     set((state) => {

@@ -33,6 +33,25 @@ export default function App() {
     hydrate()
   }, [hydrate])
 
+  // Remote viewers (host agent): per-session count of attached remote clients
+  useEffect(() => {
+    const api = window.electronAPI
+    api?.remoteGetViewers?.().then((c) => useStore.getState().setRemoteViewerCounts(c || {})).catch(() => {})
+    const cleanup = api?.onRemoteViewers?.((c) => useStore.getState().setRemoteViewerCounts(c || {}))
+    return () => { cleanup?.() }
+  }, [])
+
+  // Report busy transitions to the main process so remote clients get `meta {busy}`
+  useEffect(() => {
+    return useStore.subscribe((state, prev) => {
+      if (state.busySessionIds === prev.busySessionIds) return
+      const report = window.electronAPI?.reportSessionBusy
+      if (!report) return
+      for (const id of state.busySessionIds) if (!prev.busySessionIds.has(id)) report(id, true)
+      for (const id of prev.busySessionIds) if (!state.busySessionIds.has(id)) report(id, false)
+    })
+  }, [])
+
   // Hold Cmd+Q to quit
   const quitIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {

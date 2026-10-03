@@ -8,6 +8,20 @@ const ELECTRON_API_MOCK = `
 
   window.__savedSessions = null;
 
+  window.__remote = {
+    status: { signedIn: false, enabled: false, busy: false, deviceName: 'my-mac', preventSleep: false, tunnel: { state: 'stopped' } },
+    statusCbs: [], viewerCbs: [], viewers: {}, calls: []
+  };
+  // Test hooks: merge a partial status / viewer map and notify the renderer, like main-process IPC events.
+  window.__pushRemote = (patch) => {
+    window.__remote.status = { ...window.__remote.status, ...patch };
+    for (const cb of window.__remote.statusCbs) cb(window.__remote.status);
+  };
+  window.__pushViewers = (counts) => {
+    window.__remote.viewers = counts;
+    for (const cb of window.__remote.viewerCbs) cb(counts);
+  };
+
   window.electronAPI = {
     loadSessions: async () => window.__savedSessions,
     saveSessions: async (data) => { window.__savedSessions = JSON.parse(data); },
@@ -28,6 +42,36 @@ const ELECTRON_API_MOCK = `
     getPathForFile: () => '',
     forceQuit: () => {},
     onQuitConfirm: () => () => {},
+
+    // ---- remote access (host agent) ----
+    remoteGetStatus: async () => window.__remote.status,
+    onRemoteStatus: (cb) => {
+      window.__remote.statusCbs.push(cb);
+      return () => { window.__remote.statusCbs = window.__remote.statusCbs.filter(c => c !== cb); };
+    },
+    remoteSignIn: async () => { window.__remote.calls.push(['signIn']); return { ok: true }; },
+    remoteSignOut: async () => {
+      window.__remote.calls.push(['signOut']);
+      window.__pushRemote({ signedIn: false, login: undefined, enabled: false, tunnel: { state: 'stopped' } });
+    },
+    remoteSetEnabled: async (on) => {
+      window.__remote.calls.push(['setEnabled', on]);
+      window.__pushRemote({ enabled: on, tunnel: { state: on ? 'connecting' : 'stopped' }, hostname: on ? 'abc123.t.remoterm.io' : undefined });
+    },
+    remoteSetDeviceName: async (name) => {
+      window.__remote.calls.push(['setDeviceName', name]);
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name)) return { ok: false, error: 'Use letters, digits, dots, dashes and underscores (max 40)' };
+      window.__pushRemote({ deviceName: name });
+      return { ok: true };
+    },
+    remoteSetPreventSleep: async (on) => { window.__remote.calls.push(['setPreventSleep', on]); window.__pushRemote({ preventSleep: on }); },
+    remoteReset: async () => { window.__remote.calls.push(['reset']); window.__pushRemote({ enabled: false, deviceId: undefined, tunnel: { state: 'stopped' } }); },
+    remoteGetViewers: async () => window.__remote.viewers,
+    onRemoteViewers: (cb) => {
+      window.__remote.viewerCbs.push(cb);
+      return () => { window.__remote.viewerCbs = window.__remote.viewerCbs.filter(c => c !== cb); };
+    },
+    reportSessionBusy: (id, busy) => { window.__remote.calls.push(['busy', id, busy]); },
 
     listClaudeSessions: async () => [
       {
@@ -495,5 +539,141 @@ test.describe('Persistence', () => {
     // Session should still be in the sidebar
     const sessionItems = page.locator(SIDEBAR_SESSION)
     await expect(sessionItems).toHaveCount(1)
+  })
+})
+
+// ─── Remote access (Settings) ───
+
+async function openRemoteSettings(page: Page, initial?: Record<string, unknown>) {
+  await setupPage(page)
+  if (initial) await page.evaluate((p) => (window as any).__pushRemote(p), initial)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByTestId('remote-access')).toBeVisible()
+}
+
+const remoteCalls = (page: Page) => page.evaluate(() => (window as any).__remote.calls)
+
+test.describe('Settings › Remote access', () => {
+  test('signed out: offers GitHub sign-in and disables the toggle', async ({ page }) => {
+    await openRemoteSettings(page)
+    await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
+    await expect(page.getByLabel('Allow remote access to this Mac')).toBeDisabled()
+    await expect(page.getByTestId('remote-status')).toContainText('Off')
+
+    await page.getByRole('button', { name: 'Sign in with GitHub' }).click()
+    expect(await remoteCalls(page)).toContainEqual(['signIn'])
+  })
+
+  test('signed in: shows the login and can sign out', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat' })
+    await expect(page.getByTestId('remote-login')).toHaveText('@octocat')
+    await expect(page.getByLabel('Allow remote access to this Mac')).toBeEnabled()
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    expect(await remoteCalls(page)).toContainEqual(['signOut'])
+    await expect(page.getByRole('button', { name: 'Sign in with GitHub' })).toBeVisible()
+  })
+
+  test('enabling shows connecting then connected and the hostname', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat' })
+    await page.getByLabel('Allow remote access to this Mac').check()
+    expect(await remoteCalls(page)).toContainEqual(['setEnabled', true])
+    await expect(page.getByTestId('remote-status')).toContainText('Connecting')
+    await expect(page.getByTestId('remote-status-light')).toHaveClass(/bg-orange-400/)
+    await expect(page.getByText('abc123.t.remoterm.io')).toBeVisible()
+
+    await page.evaluate(() => (window as any).__pushRemote({ tunnel: { state: 'connected' } }))
+    await expect(page.getByTestId('remote-status')).toContainText('Connected')
+    await expect(page.getByTestId('remote-status-light')).toHaveClass(/bg-terminal-green/)
+
+    await page.getByLabel('Allow remote access to this Mac').uncheck()
+    expect(await remoteCalls(page)).toContainEqual(['setEnabled', false])
+    await expect(page.getByTestId('remote-status')).toContainText('Off')
+  })
+
+  test('tunnel errors show the last stderr line in red', async ({ page }) => {
+    await openRemoteSettings(page, {
+      signedIn: true,
+      login: 'octocat',
+      enabled: true,
+      tunnel: { state: 'error', message: 'cloudflared not installed' }
+    })
+    await expect(page.getByTestId('remote-status')).toContainText('cloudflared not installed')
+    await expect(page.getByTestId('remote-status-light')).toHaveClass(/bg-terminal-red/)
+  })
+
+  test('shows backend/registration errors', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat', error: 'You already have 5 devices registered.' })
+    await expect(page.getByTestId('remote-error')).toContainText('5 devices')
+  })
+
+  test('device name: edit commits on blur, invalid names are rejected, locked while enabled', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat' })
+    const name = page.getByLabel('Device name')
+    await expect(name).toHaveValue('my-mac')
+    await name.fill('work-mac')
+    await name.press('Enter')
+    expect(await remoteCalls(page)).toContainEqual(['setDeviceName', 'work-mac'])
+
+    await name.fill('bad name!')
+    await name.press('Enter')
+    await expect(page.getByText('Use letters, digits')).toBeVisible()
+    await expect(name).toHaveValue('work-mac')
+
+    await page.evaluate(() => (window as any).__pushRemote({ enabled: true, tunnel: { state: 'connecting' } }))
+    await expect(name).toBeDisabled()
+  })
+
+  test('prevent-sleep checkbox is sent to the main process', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat' })
+    await page.getByLabel('Prevent sleep while remote access is on').check()
+    expect(await remoteCalls(page)).toContainEqual(['setPreventSleep', true])
+  })
+
+  test('reset remote access asks for confirmation', async ({ page }) => {
+    await openRemoteSettings(page, { signedIn: true, login: 'octocat', enabled: true, deviceId: 'abc123', tunnel: { state: 'connected' } })
+    await page.getByRole('button', { name: 'Reset remote access' }).click()
+    expect(await remoteCalls(page)).not.toContainEqual(['reset'])
+    await page.getByRole('button', { name: 'Reset', exact: true }).click()
+    expect(await remoteCalls(page)).toContainEqual(['reset'])
+    await expect(page.getByTestId('remote-status')).toContainText('Off')
+  })
+})
+
+// ─── Remote viewer indicator ───
+
+test.describe('Remote viewers indicator', () => {
+  test('shows a dot on the tab and sidebar item while remote clients are attached', async ({ page }) => {
+    await setupPage(page)
+    await page.getByRole('button', { name: '+ New Session' }).click()
+    await page.waitForTimeout(150)
+    await expect(page.getByTestId('remote-viewer-dot')).toHaveCount(0)
+
+    const id = await page.evaluate(() => [...(window as any).__ptyInstances.keys()][0])
+    await page.evaluate((sid) => (window as any).__pushViewers({ [sid]: 2 }), id)
+    await expect(page.getByTestId('remote-viewer-dot')).toHaveCount(2) // tab + sidebar
+    await expect(page.getByTestId('remote-viewer-dot').first()).toHaveAttribute('title', '2 remote viewers')
+
+    await page.evaluate((sid) => (window as any).__pushViewers({ [sid]: 1 }), id)
+    await expect(page.getByTestId('remote-viewer-dot').first()).toHaveAttribute('title', '1 remote viewer')
+    await page.evaluate(() => (window as any).__pushViewers({}))
+    await expect(page.getByTestId('remote-viewer-dot')).toHaveCount(0)
+  })
+
+  test('reports busy transitions to the main process', async ({ page }) => {
+    await setupPage(page)
+    await page.getByRole('button', { name: '+ New Session' }).click()
+    await page.waitForTimeout(150)
+    const id = await page.evaluate(() => [...(window as any).__ptyInstances.keys()][0])
+    // Drive the store the way terminal output detection does.
+    await page.evaluate(async (sid) => {
+      const m = await import('/store/index.ts')
+      m.useStore.getState().markSessionBusy(sid)
+    }, id)
+    expect(await remoteCalls(page)).toContainEqual(['busy', id, true])
+    await page.evaluate(async (sid) => {
+      const m = await import('/store/index.ts')
+      m.useStore.getState().markSessionIdle(sid)
+    }, id)
+    expect(await remoteCalls(page)).toContainEqual(['busy', id, false])
   })
 })
