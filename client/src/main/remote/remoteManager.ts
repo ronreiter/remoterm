@@ -166,6 +166,11 @@ export class RemoteManager {
     return this.serial(() => this.doDisable(true))
   }
 
+  /** App quit: stop serving but keep the registration and `enabled` so the next launch resumes. */
+  async shutdown(): Promise<void> {
+    await this.serial(() => this.stopLocal())
+  }
+
   async signOut(): Promise<void> {
     await this.serial(() => this.doDisable(false))
     this.d.account.signOut()

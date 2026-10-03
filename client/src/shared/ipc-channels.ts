@@ -23,5 +23,17 @@ export const IPC = {
   READ_FILE: 'fs:read-file',
   WRITE_FILE: 'fs:write-file',
   GET_TOOL_SESSION_SUMMARY: 'tool:get-session-summary',
-  FORCE_QUIT: 'app:force-quit'
+  FORCE_QUIT: 'app:force-quit',
+  // Remote access (host agent)
+  REMOTE_GET_STATUS: 'remote:get-status',
+  REMOTE_STATUS_CHANGED: 'remote:status-changed',
+  REMOTE_SIGN_IN: 'remote:sign-in',
+  REMOTE_SIGN_OUT: 'remote:sign-out',
+  REMOTE_SET_ENABLED: 'remote:set-enabled',
+  REMOTE_SET_DEVICE_NAME: 'remote:set-device-name',
+  REMOTE_SET_PREVENT_SLEEP: 'remote:set-prevent-sleep',
+  REMOTE_RESET: 'remote:reset',
+  REMOTE_GET_VIEWERS: 'remote:get-viewers',
+  REMOTE_VIEWERS_CHANGED: 'remote:viewers-changed',
+  SESSION_BUSY_CHANGED: 'session:busy-changed'
 } as const

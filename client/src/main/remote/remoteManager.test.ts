@@ -219,6 +219,15 @@ describe('disable / reset / sign out', () => {
 })
 
 describe('resume and settings', () => {
+  it('shutdown() stops serving but keeps the registration enabled for the next launch', async () => {
+    const t = build({ config: null })
+    await t.m.enable()
+    await t.m.shutdown()
+    expect(t.log).toContain('cf.stop')
+    expect(t.log).not.toContain('remove:dev1')
+    expect(t.saved()).toMatchObject({ enabled: true, deviceId: 'dev1' })
+  })
+
   it('resume() re-enables when previously enabled and signed in', async () => {
     const t = build({ config: { enabled: true, deviceId: 'dev1', hostname: 'h', port: 4100 }, ports: [] })
     await t.m.resume()
