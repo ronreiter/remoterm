@@ -5,8 +5,14 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
-import { useStore } from '../store'
-import { CODING_TOOLS } from '../services/api'
+import { useStore, isRemoteSession, type Session } from '../store'
+import { CODING_TOOLS, type RemoteAttachMode } from '../services/api'
+import {
+  createLocalTransport,
+  createRemoteTransport,
+  type SpawnResult,
+  type TerminalTransport
+} from './terminalTransport'
 import { getTheme, type ThemeId } from '@remoterm/themes'
 
 // Open a local file path in the Monaco side pane, parsing optional :line[:col] suffix.
@@ -53,17 +59,60 @@ if (typeof document !== 'undefined') {
   })
 }
 
+/**
+ * Builds the tool command for a local session and asks the main process to spawn
+ * (or reattach to) its PTY. Local-only: remote tabs never reach the local ptyHub.
+ */
+function spawnLocal(sessionId: string, session: Session | undefined): Promise<SpawnResult> {
+  const settings = useStore.getState().settings
+  const toolDef = CODING_TOOLS.find((t) => t.id === settings?.codingTool) || CODING_TOOLS[0]
+  let command: string
+  if (session?.toolSessionId && toolDef.resumeArg) {
+    // Resume existing session
+    command = `${toolDef.command} ${toolDef.resumeArg} ${session.toolSessionId}`
+  } else if (toolDef.id === 'claude') {
+    // New Claude session: generate a UUID and pass --session-id so we always know it
+    const newToolSessionId = crypto.randomUUID()
+    command = `${toolDef.command} --session-id ${newToolSessionId}`
+    // Save immediately so it persists even if the app quits before detection
+    useStore.getState().setToolSessionId(sessionId, newToolSessionId)
+  } else {
+    command = toolDef.command
+  }
+  // Force Claude into full-screen TUI mode (alternate screen buffer). There
+  // is no --tui launch flag, but the `tui` settings key can be merged in for
+  // this session via --settings. In full-screen mode Claude manages its own
+  // scrolling and never writes to the terminal scrollback, so the default
+  // scrollback of 0 (see terminal init) costs no history.
+  if (toolDef.id === 'claude') {
+    command += ` --settings '{"tui":"fullscreen"}'`
+  }
+  if (session?.skipPermissions) {
+    command += ' --enable-auto-mode'
+  }
+  // Claude's native worktree flag — only on first spawn, not when resuming
+  // (the resumed session already lives in the previously-created worktree).
+  if (session?.useWorktree && toolDef.id === 'claude' && !session?.toolSessionId) {
+    command += ' --worktree'
+  }
+  console.log(`[PTY_SPAWN] session=${sessionId} toolSessionId=${session?.toolSessionId} command=${command}`)
+  const loadZshrc = settings?.loadZshrc ?? true
+  return window.electronAPI.spawnLocalPty(sessionId, command, session?.workDir || '~', loadZshrc)
+}
+
 export function useTerminal(sessionId: string | null) {
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const cleanupListenersRef = useRef<(() => void) | null>(null)
+  const transportRef = useRef<TerminalTransport | null>(null)
 
   const initTerminal = useCallback(
     (container: HTMLDivElement, onReady?: () => void) => {
       if (!sessionId || terminalRef.current) return
 
       const session = useStore.getState().sessions.find((s) => s.id === sessionId)
+      const isRemote = isRemoteSession(session)
 
       const themeId = (useStore.getState().settings?.theme || 'dark1') as ThemeId
       const appTheme = getTheme(themeId)
@@ -85,6 +134,8 @@ export function useTerminal(sessionId: string | null) {
           activate: (event: MouseEvent, uri: string) => {
             runLinkActivationOnce(event, () => {
               if (uri.startsWith('file://') || uri.startsWith('/') || uri.startsWith('~/')) {
+                // Paths in a remote tab live on the other Mac: nothing to open locally.
+                if (isRemote) return
                 const path = uri.replace(/^file:\/\//, '')
                 openFilePathInEditor(path)
               } else {
@@ -119,7 +170,7 @@ export function useTerminal(sessionId: string | null) {
       // (the cwd shortpath). Skip those generic strings; for Claude we fetch
       // the conversation summary from the JSONL below.
       terminal.onTitleChange((title) => {
-        if (!title || !sessionId) return
+        if (!title || !sessionId || isRemote) return
         // Strip leading non-word characters before matching: Claude Code
         // prefixes its title with a status emoji + space (e.g. "✳ Claude
         // Code"), which would otherwise slip past an exact-match filter and
@@ -154,7 +205,7 @@ export function useTerminal(sessionId: string | null) {
       }))
 
       // File path links: click to open local paths
-      terminal.registerLinkProvider({
+      if (!isRemote) terminal.registerLinkProvider({
         provideLinks(lineNumber, callback) {
           const line = terminal.buffer.active.getLine(lineNumber - 1)
           if (!line) return callback(undefined)
@@ -209,18 +260,10 @@ export function useTerminal(sessionId: string | null) {
 
       // Allow notifications after 15s (enough for all sessions to finish loading)
       setTimeout(() => { suppressNotifications = false }, 15000)
-      const removeOutput = window.electronAPI.onLocalPtyOutput((sid, data) => {
-        if (sid !== sessionId) return
-        if (!readyCalled) {
-          readyCalled = true
-          useStore.getState().markSessionLoaded(sessionId)
-          onReady?.()
-        }
-        terminal.write(data, () => {
-          if (stayAtBottom) {
-            terminal.scrollToBottom()
-          }
-        })
+
+      // Busy / activity / bell detection. Local PTYs only: remote tabs never
+      // raise busy indicators or notifications.
+      const trackLocalActivity = (data: string) => {
         // Skip busy/activity detection during quiet windows — output during these
         // windows is from app/terminal redraws, not from a real task running:
         //   - just after a window/fullscreen resize (TTY redraws on SIGWINCH)
@@ -279,28 +322,100 @@ export function useTerminal(sessionId: string | null) {
             }
           }
         }
-      })
+      }
 
-      const removeExit = window.electronAPI.onLocalPtyExit((sid, exitCode) => {
-        if (sid !== sessionId) return
-        useStore.getState().markSessionUnloaded(sessionId)
-        useStore.getState().markSessionClosed(sessionId)
-        terminal.write(`\r\n\x1b[31mProcess exited (code ${exitCode}).\x1b[0m\r\n`)
-        // Notify on process exit when window is hidden
-        if (document.hidden) {
-          const session = useStore.getState().sessions.find((s) => s.id === sessionId)
-          window.electronAPI.showNotification('Remoterm', `${session?.name || 'Session'} exited (code ${exitCode})`, sessionId)
-        }
-      })
+      const scrollIfFollowing = () => {
+        if (stayAtBottom) terminal.scrollToBottom()
+      }
 
-      const removeToolDetected = window.electronAPI.onToolSessionDetected?.((sid, toolId) => {
-        if (sid !== sessionId) return
-        useStore.getState().setToolSessionId(sessionId, toolId)
-      }) || (() => {})
+      // --- transport: local PTY (IPC) or a session on another Mac (IPC to the main-side remote client) ---
+      const remoteTarget = session?.remote
+      const getRemoteMode = (): RemoteAttachMode => useStore.getState().remoteTabs[sessionId]?.mode ?? 'control'
+      let transport: TerminalTransport
+      if (isRemote && remoteTarget) {
+        transport = createRemoteTransport(
+          sessionId,
+          { deviceId: remoteTarget.deviceId, sessionId: remoteTarget.sessionId },
+          getRemoteMode,
+          window.electronAPI
+        )
+      } else {
+        transport = createLocalTransport(sessionId, window.electronAPI, () => spawnLocal(sessionId, session))
+      }
+      transportRef.current = transport
+
+      const applyRemoteInputMode = () => {
+        if (isRemote) terminal.options.disableStdin = getRemoteMode() === 'view'
+      }
+      applyRemoteInputMode()
+
+      transport.connect(
+        {
+          onReady: () => {
+            if (readyCalled) return
+            readyCalled = true
+            useStore.getState().markSessionLoaded(sessionId)
+            onReady?.()
+          },
+          onData: (data) => {
+            terminal.write(data, scrollIfFollowing)
+            if (typeof data === 'string') trackLocalActivity(data)
+          },
+          onSnapshot: ({ data, cols, rows }) => {
+            // Every snapshot is a full reset — including ones the host sends after
+            // another client resized the PTY. Render at the host's size, then (in
+            // control mode) fit to our window and tell the host if that differs.
+            terminal.reset()
+            terminal.resize(cols, rows)
+            terminal.write(data, scrollIfFollowing)
+            if (getRemoteMode() === 'control') {
+              try {
+                fitAddon.fit()
+                if (terminal.cols !== cols || terminal.rows !== rows) transport.resize(terminal.cols, terminal.rows)
+              } catch {
+                /* container not laid out yet */
+              }
+            }
+          },
+          onExit: (exitCode) => {
+            useStore.getState().markSessionUnloaded(sessionId)
+            useStore.getState().markSessionClosed(sessionId)
+            terminal.write(`\r\n\x1b[31mProcess exited (code ${exitCode}).\x1b[0m\r\n`)
+            // Notify on process exit when window is hidden
+            if (document.hidden) {
+              const session = useStore.getState().sessions.find((s) => s.id === sessionId)
+              window.electronAPI.showNotification('Remoterm', `${session?.name || 'Session'} exited (code ${exitCode})`, sessionId)
+            }
+          },
+          onStatus: (e) => useStore.getState().applyRemoteStatus(sessionId, e),
+          onError: (message) => terminal.write(`\r\n\x1b[31mFailed to start: ${message}\x1b[0m\r\n`)
+        },
+        { cols: terminal.cols, rows: terminal.rows }
+      )
+      if (isRemote) useStore.getState().applyRemoteStatus(sessionId, { status: 'connecting' })
+
+      // Remote tabs: switching View/Control re-attaches in the new mode.
+      let lastMode = getRemoteMode()
+      const unsubMode = isRemote
+        ? useStore.subscribe((state) => {
+            const mode = state.remoteTabs[sessionId]?.mode ?? 'control'
+            if (mode === lastMode) return
+            lastMode = mode
+            applyRemoteInputMode()
+            transport.reconnect()
+          })
+        : () => {}
+
+      const removeToolDetected = isRemote
+        ? () => {}
+        : window.electronAPI.onToolSessionDetected?.((sid, toolId) => {
+            if (sid !== sessionId) return
+            useStore.getState().setToolSessionId(sessionId, toolId)
+          }) || (() => {})
 
       // Periodically pull a meaningful auto-name from the tool's own session
       // log (Claude Code: first user message in the JSONL). Stops once we
-      // successfully rename. Cleared in the cleanup chain below.
+      // successfully rename. Cleared in the cleanup chain below. Local only.
       let summaryPollInterval: ReturnType<typeof setInterval> | null = null
       const pollSummary = async () => {
         const sess = useStore.getState().sessions.find((s) => s.id === sessionId)
@@ -318,61 +433,18 @@ export function useTerminal(sessionId: string | null) {
           summaryPollInterval = null
         }
       }
-      summaryPollInterval = setInterval(pollSummary, 5000)
-      // Try once shortly after spawn so we don't wait the full interval.
-      setTimeout(pollSummary, 1500)
+      if (!isRemote) {
+        summaryPollInterval = setInterval(pollSummary, 5000)
+        // Try once shortly after spawn so we don't wait the full interval.
+        setTimeout(pollSummary, 1500)
+      }
 
       cleanupListenersRef.current = () => {
-        removeOutput()
-        removeExit()
+        transport.dispose()
+        unsubMode()
         removeToolDetected()
         if (summaryPollInterval) clearInterval(summaryPollInterval)
       }
-
-      const settings = useStore.getState().settings
-      const toolDef = CODING_TOOLS.find((t) => t.id === settings?.codingTool) || CODING_TOOLS[0]
-      let command: string
-      if (session?.toolSessionId && toolDef.resumeArg) {
-        // Resume existing session
-        command = `${toolDef.command} ${toolDef.resumeArg} ${session.toolSessionId}`
-      } else if (toolDef.id === 'claude') {
-        // New Claude session: generate a UUID and pass --session-id so we always know it
-        const newToolSessionId = crypto.randomUUID()
-        command = `${toolDef.command} --session-id ${newToolSessionId}`
-        // Save immediately so it persists even if the app quits before detection
-        useStore.getState().setToolSessionId(sessionId, newToolSessionId)
-      } else {
-        command = toolDef.command
-      }
-      // Force Claude into full-screen TUI mode (alternate screen buffer). There
-      // is no --tui launch flag, but the `tui` settings key can be merged in for
-      // this session via --settings. In full-screen mode Claude manages its own
-      // scrolling and never writes to the terminal scrollback, so the default
-      // scrollback of 0 (see terminal init above) costs no history.
-      if (toolDef.id === 'claude') {
-        command += ` --settings '{"tui":"fullscreen"}'`
-      }
-      if (session?.skipPermissions) {
-        command += ' --enable-auto-mode'
-      }
-      // Claude's native worktree flag — only on first spawn, not when resuming
-      // (the resumed session already lives in the previously-created worktree).
-      if (session?.useWorktree && toolDef.id === 'claude' && !session?.toolSessionId) {
-        command += ' --worktree'
-      }
-      console.log(`[PTY_SPAWN] session=${sessionId} toolSessionId=${session?.toolSessionId} command=${command}`)
-      const loadZshrc = settings?.loadZshrc ?? true
-      window.electronAPI.spawnLocalPty(sessionId, command, session?.workDir || '~', loadZshrc).then((result) => {
-        if (!result.ok) {
-          terminal.write(`\r\n\x1b[31mFailed to start: ${result.error}\x1b[0m\r\n`)
-        } else {
-          window.electronAPI.resizeLocalPty(sessionId, terminal.cols, terminal.rows)
-          if (result.reattached) {
-            useStore.getState().markSessionLoaded(sessionId)
-            onReady?.()
-          }
-        }
-      })
 
       // Intercept Shift+Enter to send ESC + CR instead of just CR.
       // xterm.js sends \r for both Enter and Shift+Enter by default, but CLI tools
@@ -381,7 +453,7 @@ export function useTerminal(sessionId: string | null) {
         if (event.key === 'Enter' && event.shiftKey) {
           if (event.type === 'keydown') {
             lastInputTime = Date.now()
-            window.electronAPI.sendLocalPtyInput(sessionId, '\x1b\r')
+            transport.write('\x1b\r')
           }
           return false
         }
@@ -390,10 +462,12 @@ export function useTerminal(sessionId: string | null) {
 
       terminal.onData((data) => {
         lastInputTime = Date.now()
-        window.electronAPI.sendLocalPtyInput(sessionId, data)
+        transport.write(data)
       })
 
       const resizeObserver = new ResizeObserver(() => {
+        // View-only remote tabs render at the host's size and never resize it.
+        if (isRemote && getRemoteMode() === 'view') return
         // Stamp before notifying the PTY so the redraw output that flows back
         // (often >500 bytes from full-screen apps) is treated as a quiet redraw
         // rather than a real task.
@@ -406,7 +480,7 @@ export function useTerminal(sessionId: string | null) {
         // columns of text drawn over fresh content during the post-resize
         // redraw burst from full-screen TUIs.
         webglAddon?.clearTextureAtlas()
-        window.electronAPI.resizeLocalPty(sessionId, terminal.cols, terminal.rows)
+        transport.resize(terminal.cols, terminal.rows)
       })
       resizeObserver.observe(container)
 
@@ -428,7 +502,9 @@ export function useTerminal(sessionId: string | null) {
       cleanupListenersRef.current?.()
       cleanupListenersRef.current = null
       if (sessionId) {
-        window.electronAPI.killLocalPty(sessionId)
+        // Local: kill the PTY. Remote: detach (the session keeps running on its host).
+        transportRef.current?.end()
+        transportRef.current = null
         useStore.getState().markSessionUnloaded(sessionId)
       }
       terminalRef.current?.dispose()
@@ -458,5 +534,5 @@ export function useTerminal(sessionId: string | null) {
     return unsubscribe
   }, [])
 
-  return { initTerminal, terminalRef, searchAddonRef }
+  return { initTerminal, terminalRef, searchAddonRef, transportRef }
 }

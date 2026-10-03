@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { RemotermSettings } from '../services/api'
+import type { RemoteAttachMode, RemoteTabStatus, RemotermSettings } from '../services/api'
 
 export type ColorLabel = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink'
 
@@ -32,6 +32,22 @@ export interface Session {
   createdAt: string
   colorLabel?: ColorLabel
   folderId?: string
+  // 'remote' tabs are views of a session running on another Mac. They have no
+  // local PTY, are never served by the local agent, and are persisted only so
+  // they can be re-attached on restart (dropped quietly if the session is gone).
+  kind?: 'local' | 'remote'
+  remote?: { deviceId: string; sessionId: string; deviceName: string }
+}
+
+export const isRemoteSession = (s: { kind?: string } | undefined | null): boolean => s?.kind === 'remote'
+
+export interface RemoteTabState {
+  status: RemoteTabStatus
+  code?: number
+  exitCode?: number
+  mode: RemoteAttachMode
+  // Reached 'live' at least once in this app run.
+  everLive: boolean
 }
 
 export interface Folder {
@@ -50,7 +66,10 @@ type SessionData = {
 function migrateData(data: SessionData): SessionData {
   // Migrate old status values and reopen sessions that had tabs open
   const openTabSet = new Set(data.openTabs || [])
-  data.sessions = (data.sessions || []).map((s: Session & { status: string; claudeSessionId?: string }) => {
+  // Remote tabs only survive a restart as "reattach if still running" entries:
+  // drop the ones whose tab was closed.
+  data.sessions = (data.sessions || []).filter((s: Session) => s.kind !== 'remote' || openTabSet.has(s.id))
+  data.sessions = data.sessions.map((s: Session & { status: string; claudeSessionId?: string }) => {
     // Migrate claudeSessionId → toolSessionId
     const toolSessionId = s.toolSessionId || s.claudeSessionId
     const { claudeSessionId: _, ...rest } = s as any
@@ -92,6 +111,10 @@ interface AppState {
   busySessionIds: Set<string>
   // sessionId -> number of remote clients currently attached (host agent)
   remoteViewerCounts: Record<string, number>
+  // Remote tabs: connection state + view/control mode (not persisted)
+  remoteTabs: Record<string, RemoteTabState>
+  // Remote tabs restored from disk that have not been confirmed live yet
+  restoredRemoteIds: Set<string>
   lastFinishedAt: Record<string, number>
   restartCounters: Record<string, number>
   editorFilePath: string | null
@@ -135,6 +158,28 @@ interface AppState {
   setSettings: (settings: RemotermSettings) => void
   setFontSize: (size: number) => void
   setRemoteViewerCounts: (counts: Record<string, number>) => void
+  openRemoteTab: (target: { deviceId: string; sessionId: string; deviceName: string; name: string }) => string
+  setRemoteMode: (id: string, mode: RemoteAttachMode) => void
+  applyRemoteStatus: (id: string, e: { status: RemoteTabStatus; code?: number; exitCode?: number }) => void
+}
+
+function dropRemoteTab(state: AppState, id: string): Partial<AppState> {
+  const openTabs = state.openTabs.filter((t) => t !== id)
+  let activeSessionId = state.activeSessionId
+  if (activeSessionId === id) {
+    const idx = state.openTabs.indexOf(id)
+    activeSessionId = openTabs.length > 0 ? openTabs[Math.min(idx, openTabs.length - 1)] : null
+  }
+  const { [id]: _gone, ...remoteTabs } = state.remoteTabs
+  const restored = new Set(state.restoredRemoteIds)
+  restored.delete(id)
+  return {
+    sessions: state.sessions.filter((s) => s.id !== id),
+    openTabs,
+    activeSessionId,
+    remoteTabs,
+    restoredRemoteIds: restored
+  }
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -146,6 +191,8 @@ export const useStore = create<AppState>((set) => ({
   activeTabIds: new Set<string>(),
   busySessionIds: new Set<string>(),
   remoteViewerCounts: {},
+  remoteTabs: {},
+  restoredRemoteIds: new Set<string>(),
   lastFinishedAt: {},
   restartCounters: {},
   editorFilePath: null,
@@ -164,6 +211,7 @@ export const useStore = create<AppState>((set) => ({
       if (data) {
         const migrated = migrateData(data)
         set({
+          restoredRemoteIds: new Set(migrated.sessions.filter((s) => s.kind === 'remote').map((s) => s.id)),
           sessions: migrated.sessions,
           folders: migrated.folders || [],
           openTabs: migrated.openTabs || [],
@@ -193,6 +241,7 @@ export const useStore = create<AppState>((set) => ({
 
   removeSession: (id) =>
     set((state) => {
+      if (isRemoteSession(state.sessions.find((s) => s.id === id))) return dropRemoteTab(state, id)
       const openTabs = state.openTabs.filter((t) => t !== id)
       let activeSessionId = state.activeSessionId
       if (activeSessionId === id) {
@@ -238,6 +287,8 @@ export const useStore = create<AppState>((set) => ({
 
   closeTab: (id) =>
     set((state) => {
+      // Closing a remote tab forgets it; the session keeps running on its host.
+      if (isRemoteSession(state.sessions.find((s) => s.id === id))) return dropRemoteTab(state, id)
       const openTabs = state.openTabs.filter((t) => t !== id)
       let activeSessionId = state.activeSessionId
       if (activeSessionId === id) {
@@ -308,6 +359,77 @@ export const useStore = create<AppState>((set) => ({
 
   setRemoteViewerCounts: (counts) => set({ remoteViewerCounts: counts }),
 
+  openRemoteTab: ({ deviceId, sessionId, deviceName, name }) => {
+    let id = ''
+    set((state) => {
+      const existing = state.sessions.find(
+        (s) => s.kind === 'remote' && s.remote?.deviceId === deviceId && s.remote.sessionId === sessionId
+      )
+      if (existing) {
+        id = existing.id
+        return {
+          activeSessionId: id,
+          openTabs: state.openTabs.includes(id) ? state.openTabs : [...state.openTabs, id]
+        }
+      }
+      id = crypto.randomUUID()
+      const session: Session = {
+        id,
+        name,
+        status: 'open',
+        kind: 'remote',
+        remote: { deviceId, sessionId, deviceName },
+        nameIsUserSet: true,
+        createdAt: new Date().toISOString()
+      }
+      return {
+        sessions: [session, ...state.sessions],
+        openTabs: [...state.openTabs, id],
+        activeSessionId: id
+      }
+    })
+    return id
+  },
+
+  setRemoteMode: (id, mode) =>
+    set((state) => {
+      const cur = state.remoteTabs[id]
+      if (cur?.mode === mode) return state
+      return {
+        remoteTabs: {
+          ...state.remoteTabs,
+          [id]: { ...(cur ?? { status: 'connecting' as const, everLive: false }), mode }
+        }
+      }
+    }),
+
+  applyRemoteStatus: (id, e) =>
+    set((state) => {
+      const session = state.sessions.find((s) => s.id === id)
+      if (!isRemoteSession(session)) return state
+      const cur = state.remoteTabs[id]
+      // A tab restored from a previous run whose session is gone is dropped quietly.
+      if (e.status === 'ended' && e.code === 4404 && !cur?.everLive && state.restoredRemoteIds.has(id)) {
+        return dropRemoteTab(state, id)
+      }
+      const restored = new Set(state.restoredRemoteIds)
+      if (e.status === 'live') restored.delete(id)
+      return {
+        restoredRemoteIds: restored,
+        remoteTabs: {
+          ...state.remoteTabs,
+          [id]: {
+            ...cur,
+            mode: cur?.mode ?? 'control',
+            status: e.status,
+            code: e.code,
+            exitCode: e.exitCode,
+            everLive: !!cur?.everLive || e.status === 'live'
+          }
+        }
+      }
+    }),
+
   markSessionBusy: (id) =>
     set((state) => {
       if (state.busySessionIds.has(id)) return state
@@ -331,8 +453,9 @@ export const useStore = create<AppState>((set) => ({
 
   restartSession: (id) =>
     set((state) => {
-      // Kill the PTY; the new mount (after key change) will re-spawn it
-      window.electronAPI?.killLocalPty(id)
+      // Kill the PTY; the new mount (after key change) will re-spawn it.
+      // Remote tabs just remount (the old mount detaches, the new one re-attaches).
+      if (!isRemoteSession(state.sessions.find((s) => s.id === id))) window.electronAPI?.killLocalPty(id)
       const loaded = new Set(state.loadedSessionIds)
       loaded.delete(id)
       const busy = new Set(state.busySessionIds)
