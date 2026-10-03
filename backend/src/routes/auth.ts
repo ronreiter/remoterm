@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
+import { deleteCookie, getCookie } from 'hono/cookie';
 import type { AppEnv } from '../env';
 import { now, randomToken, sha256B64url, sha256Hex } from '../lib/crypto';
 import { githubUserFromCode } from '../lib/github';
@@ -99,6 +99,16 @@ auth.post('/auth/refresh', async (c) => {
   if (fromCookie) setRefreshCookie(c, token);
   const access = await signAccessToken(c.env, { sub: row.user_id, aud: 'api' });
   return c.json({ access_token: access, expires_in: ACCESS_TTL_SECONDS });
+});
+
+auth.post('/auth/logout', async (c) => {
+  const body = await c.req.json<{ refresh_token?: string }>().catch(() => ({}) as { refresh_token?: string });
+  const token = body.refresh_token ?? getCookie(c, COOKIE_NAME);
+  if (token) {
+    await c.env.DB.prepare('DELETE FROM refresh_tokens WHERE hash = ?').bind(await sha256Hex(token)).run();
+  }
+  deleteCookie(c, COOKIE_NAME, { domain: c.env.COOKIE_DOMAIN, path: '/', secure: true });
+  return c.json({ ok: true });
 });
 
 auth.post('/auth/revoke-all', requireAuth, async (c) => {

@@ -7,7 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { useStore } from '../store'
 import { CODING_TOOLS } from '../services/api'
-import { getTheme, type ThemeId } from '../services/themes'
+import { getTheme, type ThemeId } from '@remoterm/themes'
 
 // Open a local file path in the Monaco side pane, parsing optional :line[:col] suffix.
 // Directories are routed to the OS file manager (Finder on macOS) instead — opening

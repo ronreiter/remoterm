@@ -25,6 +25,8 @@ Vars: `TUNNEL_DOMAIN` (`t.remoterm.io`), `DNS_SUFFIX` (`t`; DNS record name is `
 
 ## Endpoints
 
-Auth: `GET /auth/github?client=app&challenge=<S256>|web`, `GET /auth/github/callback`, `POST /auth/token {code, verifier}`, `POST /auth/refresh` (body `refresh_token` or `rt` cookie), `POST /auth/device`, `POST /auth/device/token`, `GET|POST /link`, `POST /auth/revoke-all`, `GET /me`, `GET /.well-known/jwks.json`.
+Auth: `GET /auth/github?client=app&challenge=<S256>|web`, `GET /auth/github/callback`, `POST /auth/token {code, verifier}`, `POST /auth/refresh` (body `refresh_token` or `rt` cookie), `POST /auth/logout` (clears the `rt` cookie, deletes that refresh token), `POST /auth/device`, `POST /auth/device/token`, `GET|POST /link`, `POST /auth/revoke-all`, `GET /me`, `GET /.well-known/jwks.json`.
+
+CORS: `/me`, `/auth/refresh`, `/auth/logout`, `/devices`, `/devices/*` reply to `Origin == WEB_ORIGIN` with `Access-Control-Allow-Origin: <WEB_ORIGIN>` + `Allow-Credentials: true` (other origins get no CORS headers).
 
 Devices (Bearer api JWT): `POST /devices`, `GET /devices`, `PUT /devices/:id/port`, `GET /devices/:id/tunnel-token`, `POST /devices/:id/attach-token`, `POST /devices/:id/heartbeat`, `GET /devices/:id/agent-config`, `DELETE /devices/:id`.

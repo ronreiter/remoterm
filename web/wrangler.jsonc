@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "remoterm-web",
+  "compatibility_date": "2025-09-01",
+  // Static SPA: `npm run build` first, then `wrangler deploy`.
+  "assets": {
+    "directory": "./dist",
+    // Deep links such as /d/<deviceId>/s/<sessionId> serve index.html.
+    "not_found_handling": "single-page-application"
+  }
+  // Once remoterm.io is a zone in your Cloudflare account, uncomment:
+  // "routes": [{ "pattern": "app.remoterm.io", "custom_domain": true }]
+}

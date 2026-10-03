@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useStore } from '../store'
 import { CODING_TOOLS, type CodingTool, type RemotermSettings } from '../services/api'
-import { THEMES, type ThemeId } from '../services/themes'
+import { THEMES, type ThemeId } from '@remoterm/themes'
 import RemoteAccessSection from './RemoteAccessSection'
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {

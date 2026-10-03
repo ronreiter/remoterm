@@ -6,7 +6,7 @@ import Terminal, { TerminalHandle } from './components/Terminal'
 import Onboarding from './components/Onboarding'
 import QuickSwitcher from './components/QuickSwitcher'
 import CodeEditor from './components/CodeEditor'
-import { getTheme, type ThemeId } from './services/themes'
+import { getTheme, type ThemeId } from '@remoterm/themes'
 
 export default function App() {
   const activeSessionId = useStore((s) => s.activeSessionId)

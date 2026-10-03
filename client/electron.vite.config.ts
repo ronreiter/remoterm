@@ -34,6 +34,7 @@ export default defineConfig({
       __APP_VERSION__: JSON.stringify(pkg.version)
     },
     plugins: [react()],
+    server: { fs: { allow: [resolve(__dirname, '..')] } },
     css: {
       postcss: resolve(__dirname, 'postcss.config.js')
     },
