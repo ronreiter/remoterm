@@ -85,8 +85,10 @@ export class CloudflaredSupervisor {
     this.set(this.failures >= STICKY_ERROR_AFTER ? this.status : { state: 'connecting' })
     let child: ChildProcess
     try {
-      child = (this.o.spawn ?? nodeSpawn)(this.o.binaryPath, ['tunnel', '--no-autoupdate', 'run', '--token', this.token], {
-        stdio: ['ignore', 'pipe', 'pipe']
+      // Token goes via env, not argv, so it isn't visible to other users in `ps`.
+      child = (this.o.spawn ?? nodeSpawn)(this.o.binaryPath, ['tunnel', '--no-autoupdate', 'run'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, TUNNEL_TOKEN: this.token }
       })
     } catch (e) {
       this.onFailure(e instanceof Error ? e.message : String(e))

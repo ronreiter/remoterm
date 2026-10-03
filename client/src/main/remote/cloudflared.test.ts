@@ -14,15 +14,15 @@ class FakeChild extends EventEmitter {
 }
 
 let children: FakeChild[]
-let spawnCalls: { cmd: string; args: string[] }[]
+let spawnCalls: { cmd: string; args: string[]; token?: string }[]
 let statuses: CloudflaredStatus[]
 
 function make(over: { exists?: boolean } = {}) {
   const sup = new CloudflaredSupervisor({
     binaryPath: '/x/cloudflared',
     exists: () => over.exists ?? true,
-    spawn: ((cmd: string, args: string[]) => {
-      spawnCalls.push({ cmd, args })
+    spawn: ((cmd: string, args: string[], opts: { env?: Record<string, string> }) => {
+      spawnCalls.push({ cmd, args, token: opts?.env?.TUNNEL_TOKEN })
       const c = new FakeChild()
       children.push(c)
       return c
@@ -43,11 +43,11 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('CloudflaredSupervisor', () => {
-  it('spawns `tunnel --no-autoupdate run --token T` and reports connecting', () => {
+  it('spawns `tunnel --no-autoupdate run` with the token in TUNNEL_TOKEN (not argv) and reports connecting', () => {
     const s = make()
     s.start('TOKEN')
     expect(spawnCalls).toEqual([
-      { cmd: '/x/cloudflared', args: ['tunnel', '--no-autoupdate', 'run', '--token', 'TOKEN'] }
+      { cmd: '/x/cloudflared', args: ['tunnel', '--no-autoupdate', 'run'], token: 'TOKEN' }
     ])
     expect(s.status).toEqual({ state: 'connecting' })
   })
