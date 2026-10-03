@@ -1,0 +1,24 @@
+{
+  "name": "remoterm-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "gen-jwt-key": "node --experimental-strip-types scripts/gen-jwt-key.ts",
+    "migrate:local": "wrangler d1 migrations apply remoterm --local"
+  },
+  "dependencies": {
+    "hono": "^4.13.12",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.71",
+    "@cloudflare/workers-types": "^5.20261003.1",
+    "typescript": "^7.0.2",
+    "vitest": "3.2",
+    "wrangler": "^4.147.0"
+  }
+}
