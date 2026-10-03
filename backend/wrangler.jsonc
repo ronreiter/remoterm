@@ -10,6 +10,7 @@
     "CF_ACCOUNT_ID": "REPLACE_WITH_ACCOUNT_ID",
     "CF_ZONE_ID": "REPLACE_WITH_REMOTERM_IO_ZONE_ID",
     "TUNNEL_DOMAIN": "t.remoterm.io",
+    "DNS_SUFFIX": "t",
     "GITHUB_CLIENT_ID": "Ov23li5NNLNc4w9aloMy",
     "API_ORIGIN": "https://api.remoterm.io",
     "WEB_ORIGIN": "https://app.remoterm.io",

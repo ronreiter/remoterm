@@ -3,6 +3,7 @@ import type { AppEnv } from './env';
 import { getJwks } from './lib/jwt';
 import auth from './routes/auth';
 import deviceFlow from './routes/device-flow';
+import devices from './routes/devices';
 
 const app = new Hono<AppEnv>();
 
@@ -13,5 +14,6 @@ app.get('/.well-known/jwks.json', async (c) => {
 });
 app.route('/', auth);
 app.route('/', deviceFlow);
+app.route('/', devices);
 
 export default app;

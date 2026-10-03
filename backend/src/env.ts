@@ -3,6 +3,8 @@ export interface Env {
   CF_ACCOUNT_ID: string;
   CF_ZONE_ID: string;
   TUNNEL_DOMAIN: string;
+  /** DNS record name suffix inside the zone, e.g. "t" -> <id>.t */
+  DNS_SUFFIX: string;
   GITHUB_CLIENT_ID: string;
   API_ORIGIN: string;
   WEB_ORIGIN: string;
