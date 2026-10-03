@@ -171,8 +171,8 @@ export class Account {
   }
 
   /** A fresh aud=api access JWT, refreshed via the stored refresh token. */
-  getAccessToken(): Promise<string> {
-    if (this.access && this.access.expiresAt - this.now() > SKEW_MS) return Promise.resolve(this.access.token)
+  getAccessToken(force = false): Promise<string> {
+    if (!force && this.access && this.access.expiresAt - this.now() > SKEW_MS) return Promise.resolve(this.access.token)
     if (this.inflight) return this.inflight
     const p = this.refresh().finally(() => {
       this.inflight = null
