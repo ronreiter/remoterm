@@ -94,6 +94,7 @@ export function createRemoteService(d: RemoteServiceDeps) {
         hub: d.hub,
         auth: auth as AgentAuth,
         port,
+        webOrigin: process.env.REMOTERM_WEB_ORIGIN || 'https://app.remoterm.io',
         ssh: { hostKey: loadOrCreateHostKey(d.dataDir), keys: new GithubKeys() },
         listSessions: () => toSessionMetas(d.readSessionsFile(), d.readSettingsFile())
       }),

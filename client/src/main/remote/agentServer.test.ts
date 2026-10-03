@@ -52,7 +52,8 @@ beforeEach(async () => {
     auth,
     listSessions: () => metas,
     port: 0,
-    authTimeoutMs: 300
+    authTimeoutMs: 300,
+    webOrigin: 'https://app.remoterm.io'
   })
   await server.start()
 })
@@ -289,6 +290,30 @@ describe('GET /api/sessions', () => {
       { id: 's1', name: 'API', tool: 'claude', cwd: '/tmp/api', folder: 'work', color: 'red', running: true, busy: true, cols: 80, rows: 24 },
       { id: 's2', name: 'Closed', tool: 'codex', cwd: '/tmp/c', folder: null, color: null, running: false, busy: false, cols: 80, rows: 24 }
     ])
+  })
+
+  it('answers CORS preflight for the web origin without auth', async () => {
+    const res = await fetch(url(), {
+      method: 'OPTIONS',
+      headers: { origin: 'https://app.remoterm.io', 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' }
+    })
+    expect(res.status).toBe(204)
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://app.remoterm.io')
+    expect(res.headers.get('access-control-allow-headers')).toMatch(/authorization/i)
+    expect(res.headers.get('access-control-allow-methods')).toMatch(/GET/)
+  })
+
+  it('adds CORS headers to /api responses for the web origin only', async () => {
+    const auth = { authorization: `Bearer ${await good()}` }
+    const ok = await fetch(url(), { headers: { ...auth, origin: 'https://app.remoterm.io' } })
+    expect(ok.headers.get('access-control-allow-origin')).toBe('https://app.remoterm.io')
+    expect(ok.headers.get('vary')).toMatch(/origin/i)
+    const denied401 = await fetch(url(), { headers: { origin: 'https://app.remoterm.io' } })
+    expect(denied401.headers.get('access-control-allow-origin')).toBe('https://app.remoterm.io')
+    const other = await fetch(url(), { headers: { ...auth, origin: 'https://evil.example' } })
+    expect(other.headers.get('access-control-allow-origin')).toBeNull()
+    const otherPre = await fetch(url(), { method: 'OPTIONS', headers: { origin: 'https://evil.example' } })
+    expect(otherPre.headers.get('access-control-allow-origin')).toBeNull()
   })
 
   it('404s other paths and binds to loopback only', async () => {

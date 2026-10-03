@@ -34,6 +34,8 @@ export interface AgentServerOptions {
   host?: string
   authTimeoutMs?: number
   pingIntervalMs?: number
+  /** Browser origin allowed to call `/api/*` cross-origin (the web terminal). */
+  webOrigin?: string
   /** Enables `WS /ws/ssh`. */
   ssh?: Pick<SshServiceOptions, 'hostKey' | 'keys' | 'mode'>
 }
@@ -106,11 +108,25 @@ export class AgentServer {
   // --- HTTP ---
 
   private async handleHttp(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? '/', 'http://localhost')
+    // CORS only for the exact web origin; other origins get no CORS headers at all.
+    const cors: Record<string, string> =
+      this.o.webOrigin && url.pathname.startsWith('/api/') && req.headers.origin === this.o.webOrigin
+        ? { 'access-control-allow-origin': this.o.webOrigin, vary: 'Origin' }
+        : {}
     const json = (code: number, body: unknown): void => {
-      res.writeHead(code, { 'content-type': 'application/json' })
+      res.writeHead(code, { 'content-type': 'application/json', ...cors })
       res.end(JSON.stringify(body))
     }
-    const url = new URL(req.url ?? '/', 'http://localhost')
+    if (req.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
+      res.writeHead(204, {
+        ...cors,
+        ...(cors['access-control-allow-origin']
+          ? { 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-allow-headers': 'authorization', 'access-control-max-age': '600' }
+          : {})
+      })
+      return void res.end()
+    }
     if (req.method === 'GET' && url.pathname === '/api/sessions') {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')
       if (!m) return json(401, { error: 'unauthorized' })
