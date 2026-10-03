@@ -1,5 +1,5 @@
-appId: com.moltty.app
-productName: Moltty
+appId: com.remoterm.app
+productName: Remoterm
 directories:
   buildResources: resources
   output: release
@@ -9,9 +9,9 @@ mac:
   category: public.app-category.developer-tools
   notarize: true
   protocols:
-    - name: Moltty Auth
+    - name: Remoterm Auth
       schemes:
-        - moltty
+        - remoterm
 dmg:
   contents:
     - x: 130

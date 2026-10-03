@@ -3,8 +3,9 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { readdirSync, readFileSync, writeFileSync, statSync, mkdirSync, existsSync } from 'fs'
 import { IPC } from '../shared/ipc-channels'
+import { migrateLegacyData, sessionsDirName, settingsFileName } from './migrate'
 
-app.setName('Moltty')
+app.setName('Remoterm')
 
 let mainWindow: BrowserWindow | null = null
 
@@ -21,7 +22,7 @@ function createWindow(): void {
   }
 
   mainWindow = new BrowserWindow({
-    title: 'Moltty',
+    title: 'Remoterm',
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -94,7 +95,7 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 // IPC handlers — session persistence
 function getSessionsPath(): string {
-  const dir = join(app.getPath('userData'), isDev ? 'moltty-data-dev' : 'moltty-data')
+  const dir = join(app.getPath('userData'), sessionsDirName(isDev))
   mkdirSync(dir, { recursive: true })
   return join(dir, 'sessions.json')
 }
@@ -118,7 +119,7 @@ ipcMain.handle(IPC.SAVE_SESSIONS, (_event, data: string) => {
 
 // Settings persistence
 function getSettingsPath(): string {
-  return join(homedir(), isDev ? '.moltty-dev.settings' : '.moltty.settings')
+  return join(homedir(), settingsFileName(isDev))
 }
 
 ipcMain.handle(IPC.LOAD_SETTINGS, () => {
@@ -355,7 +356,7 @@ ipcMain.handle(IPC.LOCAL_PTY_SPAWN, (_event, sessionId: string, command: string,
       env: {
         ...cleanEnv,
         TERM: 'xterm-256color',
-        TERM_PROGRAM: 'Moltty',
+        TERM_PROGRAM: 'Remoterm',
         FORCE_HYPERLINK: '1',
         HOME: homedir()
       }
@@ -387,7 +388,7 @@ ipcMain.handle(IPC.LOCAL_PTY_SPAWN, (_event, sessionId: string, command: string,
           if (newFile) {
             clearInterval(pollInterval)
             const toolSessionId = newFile.replace(/\.[^.]+$/, '')
-            console.log(`TOOL_SESSION_DETECTED: molttySession=${sessionId} toolSession=${toolSessionId}`)
+            console.log(`TOOL_SESSION_DETECTED: remotermSession=${sessionId} toolSession=${toolSessionId}`)
             mainWindow?.webContents.send(IPC.TOOL_SESSION_DETECTED, sessionId, toolSessionId)
           }
         } catch {}
@@ -464,7 +465,7 @@ ipcMain.handle(IPC.CREATE_GIT_WORKTREE, (_event, workDir: string) => {
     const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: dir, stdio: 'pipe' }).toString().trim()
     const suffix = Date.now().toString(36)
     const branchName = `${currentBranch}-wt-${suffix}`
-    const worktreePath = join(require('os').tmpdir(), `moltty-worktree-${branchName}`)
+    const worktreePath = join(require('os').tmpdir(), `remoterm-worktree-${branchName}`)
     execSync(`git worktree add "${worktreePath}" -b "${branchName}"`, { cwd: dir, stdio: 'pipe' })
     return { ok: true, path: worktreePath, branch: branchName }
   } catch (err) {
@@ -534,6 +535,12 @@ app.on('before-quit', (event) => {
 })
 
 app.whenReady().then(() => {
+  for (const line of migrateLegacyData({
+    appData: app.getPath('appData'),
+    userData: app.getPath('userData'),
+    home: homedir(),
+    isDev
+  })) console.log(`MIGRATED: ${line}`)
   createWindow()
 })
 
