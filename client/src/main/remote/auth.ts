@@ -21,7 +21,8 @@ export class AuthError extends Error {
 export const CONFIG_TTL_MS = 5 * 60_000
 
 export interface AgentAuthOptions {
-  deviceId: string
+  /** Expected `aud`; may be a getter since the id is only known after registration. */
+  deviceId: string | (() => string)
   getConfig: () => Promise<AgentConfig>
   nowMs?: () => number
   ttlMs?: number
@@ -106,7 +107,7 @@ export class AgentAuth {
     let claims: AccessClaims
     try {
       const { payload } = await jwtVerify(token, createLocalJWKSet(cfg.jwks), {
-        audience: this.opts.deviceId,
+        audience: typeof this.opts.deviceId === 'function' ? this.opts.deviceId() : this.opts.deviceId,
         algorithms: ['EdDSA'],
         currentDate: new Date(this.now())
       })
