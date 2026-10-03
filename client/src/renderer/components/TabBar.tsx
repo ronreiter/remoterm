@@ -95,6 +95,14 @@ export default function TabBar() {
                     title={session.colorLabel}
                   />
                 )}
+                {session.remote && (
+                  <span
+                    data-testid="remote-badge"
+                    className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-terminal-accent/15 text-terminal-accent"
+                  >
+                    remote · {session.remote.deviceName}
+                  </span>
+                )}
                 <span className="truncate" title={session.name}>{session.name}</span>
                 <RemoteViewerDot sessionId={tabId} />
                 {hasActivity && !isActive && (
