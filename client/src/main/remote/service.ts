@@ -7,6 +7,8 @@ import { Account, EncryptedFileTokenStore, apiBaseFromEnv, type SafeStorageLike 
 import { AgentAuth, fetchAgentConfig } from './auth'
 import { AgentServer } from './agentServer'
 import { CloudflaredSupervisor, cloudflaredPath } from './cloudflared'
+import { GithubKeys } from './githubKeys'
+import { loadOrCreateHostKey } from './hostKey'
 import { DeviceClient, pickFreePort } from './device'
 import type { PtyHub } from './ptyHub'
 import { DEVICE_NAME_RE, RemoteManager, type RemoteConfig } from './remoteManager'
@@ -92,6 +94,7 @@ export function createRemoteService(d: RemoteServiceDeps) {
         hub: d.hub,
         auth: auth as AgentAuth,
         port,
+        ssh: { hostKey: loadOrCreateHostKey(d.dataDir), keys: new GithubKeys() },
         listSessions: () => toSessionMetas(d.readSessionsFile(), d.readSettingsFile())
       }),
     createCloudflared: (onStatus) =>

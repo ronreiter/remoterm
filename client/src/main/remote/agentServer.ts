@@ -13,6 +13,8 @@ import {
 } from '@remoterm/protocol'
 import type { AgentAuth } from './auth'
 import type { HubClient, HubHandle, PtyHub } from './ptyHub'
+import { SshService, type SshServiceOptions } from './sshServer'
+import { WsDuplex } from './wsDuplex'
 
 /** Persisted metadata for a session (from the sessions file via the renderer). */
 export interface SessionMeta {
@@ -32,6 +34,8 @@ export interface AgentServerOptions {
   host?: string
   authTimeoutMs?: number
   pingIntervalMs?: number
+  /** Enables `WS /ws/ssh`. */
+  ssh?: Pick<SshServiceOptions, 'hostKey' | 'keys' | 'mode'>
 }
 
 interface Conn {
@@ -47,9 +51,19 @@ export class AgentServer {
   private conns = new Set<Conn>()
   private unsubRevoke: (() => void) | null = null
   private sockets = new Set<Socket>()
+  private sshService: SshService | null = null
   port = 0
 
-  constructor(private o: AgentServerOptions) {}
+  constructor(private o: AgentServerOptions) {
+    if (o.ssh) {
+      this.sshService = new SshService({
+        ...o.ssh,
+        hub: o.hub,
+        ownerLogin: () => o.auth.ownerLogin,
+        listSessions: () => this.sessions()
+      })
+    }
+  }
 
   async start(): Promise<number> {
     const server = http.createServer((req, res) => void this.handleHttp(req, res))
@@ -75,6 +89,7 @@ export class AgentServer {
   async stop(): Promise<void> {
     this.unsubRevoke?.()
     this.unsubRevoke = null
+    this.sshService?.closeAll()
     for (const c of [...this.conns]) c.ws.close(CloseCode.Unauthorized, 'agent stopping')
     const server = this.server
     this.server = null
@@ -150,6 +165,10 @@ export class AgentServer {
 
   private handleUpgrade(req: http.IncomingMessage, socket: Socket, head: Buffer): void {
     const url = new URL(req.url ?? '/', 'http://localhost')
+    if (url.pathname === '/ws/ssh' && this.sshService) {
+      this.wss.handleUpgrade(req, socket, head, (ws) => this.onSshSocket(ws, this.sshService!))
+      return
+    }
     const m = ATTACH_PATH.exec(url.pathname)
     const modeParam = url.searchParams.get('mode') ?? 'control'
     if (!m || (modeParam !== 'control' && modeParam !== 'view')) {
@@ -159,6 +178,67 @@ export class AgentServer {
     }
     const sessionId = decodeURIComponent(m[1])
     this.wss.handleUpgrade(req, socket, head, (ws) => this.onSocket(ws, sessionId, modeParam))
+  }
+
+  /** `/ws/ssh`: first-frame JWT auth, then the remaining binary frames are an SSH byte stream. */
+  private onSshSocket(ws: WebSocket, ssh: SshService): void {
+    let state: 'unauthenticated' | 'verifying' | 'ssh' | 'closed' = 'unauthenticated'
+    let duplex: WsDuplex | null = null
+    let conn: Conn | null = null
+    let ping: ReturnType<typeof setInterval> | null = null
+    const early: Buffer[] = [] // SSH client bytes that arrive while the token is being verified
+
+    const authTimer = setTimeout(() => {
+      if (state !== 'ssh') ws.close(CloseCode.Unauthorized, 'auth timeout')
+    }, this.o.authTimeoutMs ?? AUTH_TIMEOUT_MS)
+
+    ws.on('close', () => {
+      state = 'closed'
+      clearTimeout(authTimer)
+      if (ping) clearInterval(ping)
+      if (conn) this.conns.delete(conn)
+    })
+    ws.on('error', () => ws.terminate())
+
+    const authenticate = async (token: string): Promise<void> => {
+      state = 'verifying'
+      let claims: AccessClaims
+      try {
+        claims = await this.o.auth.verify(token)
+      } catch {
+        if (state === 'verifying') ws.close(CloseCode.Unauthorized, 'unauthorized')
+        return
+      }
+      if (state !== 'verifying') return
+      clearTimeout(authTimer)
+      conn = { ws, iat: claims.iat }
+      this.conns.add(conn)
+      // Constructed after ws 'message' handling below so frames are never lost: bytes seen so far are replayed.
+      duplex = new WsDuplex(ws)
+      state = 'ssh'
+      ssh.handle(duplex)
+      for (const b of early) duplex.feed(b)
+      early.length = 0
+      ping = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.ping()
+      }, this.o.pingIntervalMs ?? PING_INTERVAL_MS)
+      ping.unref?.()
+    }
+
+    ws.on('message', (data: RawData, isBinary: boolean) => {
+      if (state === 'ssh') return // WsDuplex has its own listener
+      if (state === 'verifying') {
+        if (isBinary) early.push(rawToBuffer(data))
+        return
+      }
+      if (state !== 'unauthenticated') return
+      const msg = isBinary ? null : decodeClientMessage(rawToBuffer(data).toString('utf8'))
+      if (!msg || msg.t !== 'auth') {
+        ws.close(CloseCode.Unauthorized, 'auth required')
+        return
+      }
+      void authenticate(msg.token)
+    })
   }
 
   private onSocket(ws: WebSocket, sessionId: string, mode: AttachMode): void {
