@@ -36,6 +36,13 @@ tasks:
     cmds:
       - npx playwright test
 
+  test-unit:
+    desc: Run Vitest unit/integration tests (client main process + packages/protocol)
+    deps: [install]
+    cmds:
+      - cd client && npm run test:unit
+      - cd packages/protocol && npm install && npm test
+
   package:
     desc: Package the app for distribution
     deps: [build]
@@ -46,6 +53,7 @@ tasks:
       APPLE_API_KEY: "{{.HOME}}/private_keys/AuthKey_2ZR5277S92.p8"
       APPLE_TEAM_ID: 8BKF8DY7Y4
     cmds:
+      - bash scripts/fetch-cloudflared.sh
       - npm run package
 
   bump:

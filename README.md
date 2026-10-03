@@ -82,6 +82,22 @@ client/
   electron-builder.yml  Build configuration
 ```
 
+## Remote access (host agent, in development)
+
+The main process contains an on-device agent (`client/src/main/remote/`) that lets the
+owner attach to running sessions through a Cloudflare Tunnel (Settings > Remote access).
+
+- `packages/protocol/` holds the attach protocol and `AttachClient`. It is a standalone
+  package (no npm workspaces): the client depends on it via `"@remoterm/protocol": "file:../packages/protocol"`
+  and electron-vite bundles its TypeScript source into the main process.
+- `REMOTERM_API` overrides the backend URL (default `https://api.remoterm.io`).
+- `cd client && npm run fetch-cloudflared` downloads the pinned cloudflared binaries into
+  `client/resources/bin/` (gitignored; `task package` runs it). Without the binary the
+  panel reports "cloudflared not installed".
+- Unit/integration tests: `cd client && npm run test:unit`, `cd packages/protocol && npm test`.
+  The client tests use node-pty with the Node ABI; if `postinstall` (electron-rebuild) replaced
+  it with the Electron ABI build, try `npm run test:unit:electron` (runs vitest under ELECTRON_RUN_AS_NODE; not yet verified).
+
 ## Contributing
 
 Contributions are welcome! Here's how to get started:
