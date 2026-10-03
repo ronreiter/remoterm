@@ -337,6 +337,16 @@ describe('attach', () => {
     client.write('t1', 'x') // no-op, no throw
   })
 
+  it('failAllAuth (signed out) closes tabs and reports auth once', async () => {
+    client.attach({ tabId: 't1', deviceId: 'd1', sessionId: 's1', mode: 'control' })
+    await until(() => lastStatus() === 'live')
+    client.failAllAuth()
+    expect(statuses.at(-1)).toMatchObject({ tabId: 't1', status: 'auth', code: 4401 })
+    await until(() => conns[0].ws.readyState === WebSocket.CLOSED)
+    await new Promise((r) => setTimeout(r, 60))
+    expect(statuses.filter((s) => s.status === 'auth')).toHaveLength(1)
+  })
+
   it('detachAll closes every tab', async () => {
     client.attach({ tabId: 'a', deviceId: 'd1', sessionId: 's1', mode: 'control' })
     client.attach({ tabId: 'b', deviceId: 'd2', sessionId: 's2', mode: 'view' })

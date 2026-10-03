@@ -13,6 +13,7 @@ import { DeviceClient, pickFreePort } from './device'
 import type { PtyHub } from './ptyHub'
 import { DEVICE_NAME_RE, RemoteManager, type RemoteConfig } from './remoteManager'
 import { toSessionMetas } from './sessionMeta'
+import { RemoteClient, tunnelDomainFromEnv } from './remoteClient'
 
 export interface RemoteServiceDeps {
   ipcMain: IpcMain
@@ -59,7 +60,19 @@ export function createRemoteService(d: RemoteServiceDeps) {
     apiBase,
     store: new EncryptedFileTokenStore(join(d.dataDir, 'remote-auth.bin'), d.safeStorage),
     openExternal: (url) => d.shell.openExternal(url),
-    onChange: () => manager?.notifyAccountChanged()
+    onChange: (s) => {
+      manager?.notifyAccountChanged()
+      if (!s.signedIn) remoteClient.failAllAuth()
+    }
+  })
+  // Remote client: attaches to sessions on the user's other devices (all network I/O stays in main).
+  const remoteClient = new RemoteClient({
+    apiBase,
+    tunnelDomain: tunnelDomainFromEnv(),
+    getAccessToken: (force) => account.getAccessToken(force),
+    ownDeviceId: () => manager.getStatus().deviceId,
+    emitOutput: (e) => send(IPC.REMOTE_TAB_OUTPUT, e),
+    emitStatus: (e) => send(IPC.REMOTE_TAB_STATUS, e)
   })
   const device = new DeviceClient({ apiBase, getAccessToken: () => account.getAccessToken() })
 
@@ -159,6 +172,14 @@ export function createRemoteService(d: RemoteServiceDeps) {
   ipcMain.handle(IPC.REMOTE_SET_DEVICE_NAME, (_e, name: string) => manager.setDeviceName(String(name)))
   ipcMain.handle(IPC.REMOTE_SET_PREVENT_SLEEP, (_e, on: boolean) => manager.setPreventSleep(!!on))
   ipcMain.handle(IPC.REMOTE_RESET, () => manager.resetRemoteAccess())
+  ipcMain.handle(IPC.REMOTE_LIST, () => remoteClient.listDevices())
+  ipcMain.handle(IPC.REMOTE_ATTACH, (_e, req: { tabId: string; deviceId: string; sessionId: string; mode: 'control' | 'view' }) => {
+    if (!req || typeof req.tabId !== 'string' || typeof req.deviceId !== 'string' || typeof req.sessionId !== 'string') return
+    remoteClient.attach({ ...req, mode: req.mode === 'view' ? 'view' : 'control' })
+  })
+  ipcMain.on(IPC.REMOTE_INPUT, (_e, tabId: string, data: string) => remoteClient.write(String(tabId), String(data)))
+  ipcMain.on(IPC.REMOTE_RESIZE, (_e, tabId: string, cols: number, rows: number) => remoteClient.resize(String(tabId), cols | 0, rows | 0))
+  ipcMain.on(IPC.REMOTE_DETACH, (_e, tabId: string) => remoteClient.detach(String(tabId)))
   ipcMain.on(IPC.SESSION_BUSY_CHANGED, (_e, sessionId: string, busy: boolean) => d.hub.setBusy(sessionId, !!busy))
 
   return {
@@ -170,6 +191,10 @@ export function createRemoteService(d: RemoteServiceDeps) {
       manager.notifyAccountChanged()
       await manager.resume()
     },
-    shutdown: () => manager.shutdown()
+    remoteClient,
+    shutdown: () => {
+      remoteClient.detachAll()
+      return manager.shutdown()
+    }
   }
 }

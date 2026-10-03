@@ -82,5 +82,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC.REMOTE_VIEWERS_CHANGED, listener)
     return () => ipcRenderer.removeListener(IPC.REMOTE_VIEWERS_CHANGED, listener)
   },
+  // Remote client (tabs on other devices); tokens stay in the main process.
+  remoteList: () => ipcRenderer.invoke(IPC.REMOTE_LIST),
+  remoteAttach: (req: { tabId: string; deviceId: string; sessionId: string; mode: 'control' | 'view' }) =>
+    ipcRenderer.invoke(IPC.REMOTE_ATTACH, req),
+  remoteTabInput: (tabId: string, data: string) => ipcRenderer.send(IPC.REMOTE_INPUT, tabId, data),
+  remoteTabResize: (tabId: string, cols: number, rows: number) => ipcRenderer.send(IPC.REMOTE_RESIZE, tabId, cols, rows),
+  remoteDetach: (tabId: string) => ipcRenderer.send(IPC.REMOTE_DETACH, tabId),
+  onRemoteTabOutput: (cb: (e: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, e: unknown) => cb(e)
+    ipcRenderer.on(IPC.REMOTE_TAB_OUTPUT, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_TAB_OUTPUT, listener)
+  },
+  onRemoteTabStatus: (cb: (e: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, e: unknown) => cb(e)
+    ipcRenderer.on(IPC.REMOTE_TAB_STATUS, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_TAB_STATUS, listener)
+  },
   reportSessionBusy: (sessionId: string, busy: boolean) => ipcRenderer.send(IPC.SESSION_BUSY_CHANGED, sessionId, busy)
 })

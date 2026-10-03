@@ -236,6 +236,17 @@ export class RemoteClient {
     t.client.close()
   }
 
+  /** Signed out: every attached tab stops retrying and shows "sign-in needed". */
+  failAllAuth(): void {
+    for (const [tabId, t] of [...this.tabs]) {
+      t.client.close()
+      if (!t.final) {
+        t.final = true
+        this.o.emitStatus({ tabId, status: 'auth', code: CloseCode.Unauthorized })
+      }
+    }
+  }
+
   detachAll(): void {
     for (const id of [...this.tabs.keys()]) this.detach(id)
   }

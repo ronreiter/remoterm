@@ -35,5 +35,13 @@ export const IPC = {
   REMOTE_RESET: 'remote:reset',
   REMOTE_GET_VIEWERS: 'remote:get-viewers',
   REMOTE_VIEWERS_CHANGED: 'remote:viewers-changed',
-  SESSION_BUSY_CHANGED: 'session:busy-changed'
+  SESSION_BUSY_CHANGED: 'session:busy-changed',
+  // Remote client (viewing other devices' sessions)
+  REMOTE_LIST: 'remote:list',
+  REMOTE_ATTACH: 'remote:attach',
+  REMOTE_INPUT: 'remote:input',
+  REMOTE_RESIZE: 'remote:resize',
+  REMOTE_DETACH: 'remote:detach',
+  REMOTE_TAB_OUTPUT: 'remote:tab-output',
+  REMOTE_TAB_STATUS: 'remote:tab-status'
 } as const

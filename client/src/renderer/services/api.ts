@@ -59,6 +59,47 @@ export type RemoteStatus = {
   error?: string
 }
 
+export type RemoteTabStatus = 'connecting' | 'live' | 'offline' | 'ended' | 'auth'
+
+export type RemoteSessionInfo = {
+  id: string
+  name: string
+  tool: string
+  cwd: string
+  folder: string | null
+  color: string | null
+  running: boolean
+  busy: boolean
+  cols: number
+  rows: number
+}
+
+export type RemoteDevice = {
+  id: string
+  name: string
+  online: boolean
+  lastSeen: number | null
+  sessions: RemoteSessionInfo[]
+  error?: 'offline' | 'auth'
+}
+
+export type RemoteListResult =
+  | { ok: true; devices: RemoteDevice[] }
+  | { ok: false; error: 'signed_out' | 'network' | 'server' }
+
+export type RemoteAttachMode = 'control' | 'view'
+
+export type RemoteTabOutputEvent =
+  | { tabId: string; kind: 'snapshot'; data: string; cols: number; rows: number }
+  | { tabId: string; kind: 'data'; data: Uint8Array }
+
+export type RemoteTabStatusEvent = {
+  tabId: string
+  status: RemoteTabStatus
+  code?: number
+  exitCode?: number
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -99,6 +140,13 @@ declare global {
       remoteReset: () => Promise<void>
       remoteGetViewers: () => Promise<Record<string, number>>
       onRemoteViewers: (cb: (counts: Record<string, number>) => void) => () => void
+      remoteList: () => Promise<RemoteListResult>
+      remoteAttach: (req: { tabId: string; deviceId: string; sessionId: string; mode: RemoteAttachMode }) => Promise<void>
+      remoteTabInput: (tabId: string, data: string) => void
+      remoteTabResize: (tabId: string, cols: number, rows: number) => void
+      remoteDetach: (tabId: string) => void
+      onRemoteTabOutput: (cb: (e: RemoteTabOutputEvent) => void) => () => void
+      onRemoteTabStatus: (cb: (e: RemoteTabStatusEvent) => void) => () => void
       reportSessionBusy: (sessionId: string, busy: boolean) => void
     }
   }

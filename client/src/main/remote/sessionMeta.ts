@@ -6,7 +6,8 @@ export function toSessionMetas(data: any, settings: any): SessionMeta[] {
   const folders: any[] = Array.isArray(data?.folders) ? data.folders : []
   const tool = typeof settings?.codingTool === 'string' ? settings.codingTool : 'claude'
   return sessions
-    .filter((s) => s && typeof s.id === 'string')
+    // Remote tabs (kind: 'remote') are views of another Mac's sessions, never ours to serve.
+    .filter((s) => s && typeof s.id === 'string' && s.kind !== 'remote')
     .map((s) => ({
       id: s.id,
       name: typeof s.name === 'string' ? s.name : s.id,

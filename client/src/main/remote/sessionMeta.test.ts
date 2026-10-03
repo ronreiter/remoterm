@@ -26,4 +26,17 @@ describe('toSessionMetas', () => {
       { id: 'z', name: 'z', tool: 'claude', cwd: '', folder: null, color: null }
     ])
   })
+
+  it('never serves remote tabs (views of other Macs) to remote clients', () => {
+    const metas = toSessionMetas(
+      {
+        sessions: [
+          { id: 'a', name: 'API', status: 'open' },
+          { id: 'r', name: 'studio session', status: 'open', kind: 'remote', remote: { deviceId: 'd1', sessionId: 's1', deviceName: 'studio' } }
+        ]
+      },
+      {}
+    )
+    expect(metas.map((m) => m.id)).toEqual(['a'])
+  })
 })
