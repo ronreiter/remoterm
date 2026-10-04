@@ -4,11 +4,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": ["nodejs_compat"],
-  // Once remoterm.io is a zone in your Cloudflare account, uncomment:
-  // "routes": [{ "pattern": "api.remoterm.io", "custom_domain": true }],
+  // remoterm.io is a zone in the account (added 2026-10-04).
+  "routes": [{ "pattern": "api.remoterm.io", "custom_domain": true }],
   "vars": {
-    "CF_ACCOUNT_ID": "REPLACE_WITH_ACCOUNT_ID",
-    "CF_ZONE_ID": "REPLACE_WITH_REMOTERM_IO_ZONE_ID",
+    "CF_ACCOUNT_ID": "b2aeac2ca657bbb40f829cd4054f2cc2",
+    "CF_ZONE_ID": "9983ee60f0545995cb625c1e82e56140",
     "TUNNEL_DOMAIN": "t.remoterm.io",
     "DNS_SUFFIX": "t",
     "GITHUB_CLIENT_ID": "Ov23li5NNLNc4w9aloMy",

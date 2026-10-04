@@ -7,7 +7,6 @@
     "directory": "./dist",
     // Deep links such as /d/<deviceId>/s/<sessionId> serve index.html.
     "not_found_handling": "single-page-application"
-  }
-  // Once remoterm.io is a zone in your Cloudflare account, uncomment:
-  // "routes": [{ "pattern": "app.remoterm.io", "custom_domain": true }]
+  },
+  "routes": [{ "pattern": "app.remoterm.io", "custom_domain": true }]
 }
