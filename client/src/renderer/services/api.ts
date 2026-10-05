@@ -8,7 +8,7 @@ export type ClaudeSession = {
 
 export type CodingTool = 'claude' | 'opencode' | 'gemini' | 'codex' | 'aider'
 
-export type MolttySettings = {
+export type RemotermSettings = {
   codingTool: CodingTool
   loadZshrc: boolean
   theme?: string
@@ -44,7 +44,7 @@ declare global {
     electronAPI: {
       loadSessions: () => Promise<any>
       saveSessions: (data: string) => Promise<void>
-      loadSettings: () => Promise<MolttySettings | null>
+      loadSettings: () => Promise<RemotermSettings | null>
       saveSettings: (data: string) => Promise<void>
       listClaudeSessions: () => Promise<ClaudeSession[]>
       pickFolder: () => Promise<string | null>

@@ -67,7 +67,7 @@ tasks:
       - task: package
       - |
         VERSION=$(node -p "require('./client/package.json').version")
-        gh release create "v${VERSION}" --title "Moltty v${VERSION}" --generate-notes "client/release/Moltty-${VERSION}-arm64.dmg"
+        gh release create "v${VERSION}" --title "Remoterm v${VERSION}" --generate-notes "client/release/Remoterm-${VERSION}-arm64.dmg"
 
   clean:
     desc: Remove build artifacts

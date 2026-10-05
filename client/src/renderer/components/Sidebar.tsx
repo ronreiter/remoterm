@@ -184,8 +184,8 @@ export default function Sidebar() {
   // sidebar button so the worktree / auto-mode toggles still apply.
   useEffect(() => {
     const handler = () => { newSessionWithFolder() }
-    window.addEventListener('moltty:new-session', handler)
-    return () => window.removeEventListener('moltty:new-session', handler)
+    window.addEventListener('remoterm:new-session', handler)
+    return () => window.removeEventListener('remoterm:new-session', handler)
   })
 
   const lowerSearch = search.toLowerCase()
@@ -223,7 +223,7 @@ export default function Sidebar() {
           text-selection from competing with the OS-level drag gesture. */}
       <div className="titlebar-drag h-10 flex items-center gap-2 pl-20 pr-4 flex-shrink-0 select-none">
         <img src={iconUrl} alt="" className="w-4 h-4 rounded-[4px] flex-shrink-0" draggable={false} />
-        <span className="text-sm font-semibold text-terminal-accent">Moltty{location.port ? ' (Dev)' : ''}</span>
+        <span className="text-sm font-semibold text-terminal-accent">Remoterm{location.port ? ' (Dev)' : ''}</span>
       </div>
 
       {/* New session button */}

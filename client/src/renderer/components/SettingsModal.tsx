@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useStore } from '../store'
-import { CODING_TOOLS, type CodingTool, type MolttySettings } from '../services/api'
+import { CODING_TOOLS, type CodingTool, type RemotermSettings } from '../services/api'
 import { THEMES, type ThemeId } from '../services/themes'
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -22,7 +22,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   const handleSave = () => {
-    const newSettings: MolttySettings = { codingTool: selected, loadZshrc, notifications, autoUpdate, scrollback, theme }
+    const newSettings: RemotermSettings = { codingTool: selected, loadZshrc, notifications, autoUpdate, scrollback, theme }
     setSettings(newSettings)
     onClose()
   }

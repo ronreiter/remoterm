@@ -1,18 +1,18 @@
-# Moltty — Organized, Persistent AI Coding Sessions
+# Remoterm — Organized, Persistent AI Coding Sessions
 
-**[moltty.com](https://moltty.com)**
+**[remoterm.io](https://remoterm.io)**
 
 A native macOS terminal app for AI coding tools. Run Claude Code, Gemini CLI, Codex, Aider, OpenCode, or GitHub Copilot in a tabbed, persistent terminal with a clean UI. Restart the app, reboot your Mac — your sessions pick up right where you left off.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-![Moltty Screenshot](screenshot.png)
+![Remoterm Screenshot](screenshot.png)
 
 ## Features
 
 - **Multi-tool support** — Choose your AI coding tool on first launch: Claude Code, OpenCode, Gemini CLI, Codex, Aider, GitHub Copilot, or Amp
 - **Tabbed sessions** — Run multiple sessions side by side with drag-and-drop tab reordering
-- **Session persistence** — Close Moltty, restart your Mac — all your sessions automatically resume right where you left off. Works with every supported tool.
+- **Session persistence** — Close Remoterm, restart your Mac — all your sessions automatically resume right where you left off. Works with every supported tool.
 - **Folders & color labels** — Organize sessions into collapsible folders (drag-and-drop) and tag them with colors for visual grouping. Sessions sort with the most recently active ones at the top.
 - **Built-in code editor** — Click any file path in the terminal to open it in a Monaco-based side pane (the same editor that powers VS Code). Edit, save with Cmd+S.
 - **Live git branch** — The current branch is shown in the header and refreshes every 10 seconds, so you always know which branch the active session is on.
@@ -23,7 +23,7 @@ A native macOS terminal app for AI coding tools. Run Claude Code, Gemini CLI, Co
 
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/ronreiter/moltty/releases), open it, and drag Moltty to Applications.
+Download the latest `.dmg` from [Releases](https://github.com/ronreiter/remoterm/releases), open it, and drag Remoterm to Applications.
 
 ### Build from source
 
@@ -64,7 +64,9 @@ npm run package
 4. **Resume sessions** — Check the History tab to resume previous conversations
 5. **Settings** — Click the gear icon in the sidebar to change your tool or shell config
 
-Settings are stored in `~/.moltty.settings`.
+Settings are stored in `~/.remoterm.settings`.
+
+Upgrading from Moltty? Your sessions and settings are copied automatically on first launch.
 
 ## Project Structure
 

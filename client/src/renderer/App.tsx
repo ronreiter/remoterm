@@ -71,7 +71,7 @@ export default function App() {
 
   // Check for updates on mount
   useEffect(() => {
-    fetch('https://api.github.com/repos/ronreiter/moltty/releases/latest')
+    fetch('https://api.github.com/repos/ronreiter/remoterm/releases/latest')
       .then((r) => r.json())
       .then((d) => {
         if (!d.tag_name) return
@@ -160,7 +160,7 @@ export default function App() {
         e.preventDefault()
         // Sidebar owns the new-session UI state (worktree/auto-mode toggles +
         // folder picker). Dispatch an event for it to handle.
-        window.dispatchEvent(new Event('moltty:new-session'))
+        window.dispatchEvent(new Event('remoterm:new-session'))
         return
       }
 
@@ -243,7 +243,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-terminal-text">Moltty v{updateInfo.version} Available</h2>
+                <h2 className="text-lg font-bold text-terminal-text">Remoterm v{updateInfo.version} Available</h2>
                 <button onClick={() => setUpdateInfo(null)} className="text-terminal-subtext hover:text-terminal-text text-lg leading-none">
                   ×
                 </button>

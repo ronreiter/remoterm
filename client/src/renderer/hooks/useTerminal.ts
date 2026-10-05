@@ -259,7 +259,7 @@ export function useTerminal(sessionId: string | null) {
             if (!suppressNotifications) useStore.getState().markTabActivity(sessionId)
             if (!suppressNotifications && useStore.getState().settings?.notifications !== false) {
               const session = useStore.getState().sessions.find((s) => s.id === sessionId)
-              window.electronAPI.showNotification('Moltty', `${session?.name || 'Session'} finished a task`, sessionId)
+              window.electronAPI.showNotification('Remoterm', `${session?.name || 'Session'} finished a task`, sessionId)
             }
           }
         }, 2000)
@@ -275,7 +275,7 @@ export function useTerminal(sessionId: string | null) {
             // Standalone BEL — notify if background tab
             if (useStore.getState().activeSessionId !== sessionId) {
               const session = useStore.getState().sessions.find((s) => s.id === sessionId)
-              window.electronAPI.showNotification('Moltty', `${session?.name || 'Session'} needs attention`, sessionId)
+              window.electronAPI.showNotification('Remoterm', `${session?.name || 'Session'} needs attention`, sessionId)
             }
           }
         }
@@ -289,7 +289,7 @@ export function useTerminal(sessionId: string | null) {
         // Notify on process exit when window is hidden
         if (document.hidden) {
           const session = useStore.getState().sessions.find((s) => s.id === sessionId)
-          window.electronAPI.showNotification('Moltty', `${session?.name || 'Session'} exited (code ${exitCode})`, sessionId)
+          window.electronAPI.showNotification('Remoterm', `${session?.name || 'Session'} exited (code ${exitCode})`, sessionId)
         }
       })
 

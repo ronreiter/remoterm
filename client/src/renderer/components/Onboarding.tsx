@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useStore } from '../store'
-import { CODING_TOOLS, type CodingTool, type MolttySettings } from '../services/api'
+import { CODING_TOOLS, type CodingTool, type RemotermSettings } from '../services/api'
 
 export default function Onboarding() {
   const setSettings = useStore((s) => s.setSettings)
@@ -8,7 +8,7 @@ export default function Onboarding() {
   const [loadZshrc, setLoadZshrc] = useState(true)
 
   const handleSubmit = () => {
-    const settings: MolttySettings = { codingTool: selected, loadZshrc }
+    const settings: RemotermSettings = { codingTool: selected, loadZshrc }
     setSettings(settings)
   }
 
@@ -16,7 +16,7 @@ export default function Onboarding() {
     <div className="flex h-screen bg-terminal-bg items-center justify-center">
       <div className="w-[520px] flex flex-col gap-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-terminal-text mb-2">Welcome to Moltty</h1>
+          <h1 className="text-2xl font-bold text-terminal-text mb-2">Welcome to Remoterm</h1>
           <p className="text-terminal-subtext text-sm">Choose your AI coding tool to get started</p>
         </div>
 
