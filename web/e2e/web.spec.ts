@@ -48,6 +48,7 @@ test('deep link attaches, renders the snapshot, and typing sends bytes', async (
   await page.goto('/d/d1/s/s1')
   await expect.poll(() => terminalText(page)).toContain('hello from mock')
   await expect(page.getByTestId('conn-status')).toHaveText('open')
+  await expect(page.getByTestId('term-title')).toHaveText('zsh - project') // name, not the session id
 
   const conn = agent.connections.at(-1)!
   expect(conn.mode).toBe('control')

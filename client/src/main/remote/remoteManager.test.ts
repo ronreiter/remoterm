@@ -234,6 +234,28 @@ describe('resume and settings', () => {
     expect(t.m.getStatus().enabled).toBe(true)
   })
 
+  it('server-side setup failures are shown without naming the infrastructure provider', async () => {
+    for (const code of ['provisioning_failed', 'cloudflare_error']) {
+      const t = build({
+        config: null,
+        deviceOverrides: { register: vi.fn(async () => { throw new DeviceApiError(502, code, 'Cloudflare API error 1003') }) }
+      })
+      await t.m.enable()
+      expect(t.m.getStatus().error).toBe('Could not set up remote access. Try again in a moment.')
+    }
+  })
+
+  it('connection status shown to the user never names cloudflared/Cloudflare', async () => {
+    const t = build({ config: null })
+    await t.m.enable()
+    t.setCf({ state: 'error', message: 'cloudflared not installed' })
+    expect(t.m.getStatus().tunnel).toEqual({ state: 'error', message: 'Remote access component is missing. Reinstall Remoterm.' })
+    t.setCf({ state: 'error', message: 'ERR Cloudflare edge unreachable (cloudflared exited with code 1)' })
+    expect(t.m.getStatus().tunnel).toEqual({ state: 'error', message: 'Connection lost. Retrying…' })
+    t.setCf({ state: 'connected' })
+    expect(t.m.getStatus().tunnel).toEqual({ state: 'connected' })
+  })
+
   it('onSignedIn() turns remote access on right after an interactive sign-in', async () => {
     const t = build({ config: null })
     await t.m.onSignedIn()

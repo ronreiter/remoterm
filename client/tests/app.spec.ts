@@ -614,9 +614,9 @@ test.describe('Settings › Remote access', () => {
       signedIn: true,
       login: 'octocat',
       enabled: true,
-      tunnel: { state: 'error', message: 'cloudflared not installed' }
+      tunnel: { state: 'error', message: 'Remote access component is missing. Reinstall Remoterm.' }
     })
-    await expect(page.getByTestId('remote-status')).toContainText('cloudflared not installed')
+    await expect(page.getByTestId('remote-status')).toContainText('Remote access component is missing')
     await expect(page.getByTestId('remote-status-light')).toHaveClass(/bg-terminal-red/)
   })
 

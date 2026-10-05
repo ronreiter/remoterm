@@ -99,7 +99,10 @@ describe('POST /devices', () => {
     cf.on('DELETE', `${ACCT}/tun-1`, 200, {});
     const res = await post({ name: 'my-mac', port: 7777 });
     expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({ error: 'cloudflare_error' });
+    const body = (await res.json()) as Record<string, unknown>;
+    // Clients see a neutral error; provider details stay in server logs.
+    expect(body).toEqual({ error: 'provisioning_failed', message: 'Could not set up remote access. Try again in a moment.' });
+    expect(JSON.stringify(body).toLowerCase()).not.toContain('cloudflare');
     expect(cf.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       `POST ${ACCT}`,
       `PUT ${ACCT}/tun-1/configurations`,

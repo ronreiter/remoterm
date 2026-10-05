@@ -62,6 +62,19 @@ export function TerminalPage({
   const [status, setStatus] = useState<Status>({ kind: 'checking' })
   const [epoch, setEpoch] = useState(0)
   const [title, setTitle] = useState<string | null>(null)
+  const [sessionName, setSessionName] = useState<string | null>(null)
+
+  // Deep links carry only ids; look up the session's display name.
+  useEffect(() => {
+    let alive = true
+    api
+      .sessions(deviceId)
+      .then((list) => alive && setSessionName(list.find((x) => x.id === sessionId)?.name ?? null))
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [deviceId, sessionId])
   const viewOnlyRef = useRef(viewOnly)
   const ctrlRef = useRef(ctrl)
   viewOnlyRef.current = viewOnly
@@ -234,7 +247,7 @@ export function TerminalPage({
           &larr;
         </Link>
         <span className="min-w-0 flex-1 truncate" data-testid="term-title">
-          {title ?? sessionId}
+          {title ?? sessionName ?? 'Session'}
         </span>
         <span className="text-xs text-terminal-subtext" data-testid="conn-status">
           {status.kind}

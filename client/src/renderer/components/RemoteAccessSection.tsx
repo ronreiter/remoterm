@@ -117,7 +117,7 @@ export default function RemoteAccessSection() {
         <div className="flex flex-col flex-1">
           <span className="text-sm text-terminal-text">Allow remote access to this Mac</span>
           <span className="text-xs text-terminal-subtext">
-            {status.enabled && status.hostname ? status.hostname : 'Runs a Cloudflare Tunnel while Remoterm is open'}
+            {status.enabled && status.hostname ? status.hostname : 'Keeps a secure connection open while Remoterm is running'}
           </span>
         </div>
         <span className="flex items-center gap-2 text-xs text-terminal-subtext min-w-0" data-testid="remote-status">

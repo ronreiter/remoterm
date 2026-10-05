@@ -5,6 +5,12 @@ import { newDeviceId, now } from '../lib/crypto';
 import { ACCESS_TTL_SECONDS, getJwks, signAccessToken } from '../lib/jwt';
 import { requireAuth } from '../lib/session';
 
+/** Provider errors stay in server logs; clients get a neutral message. */
+function provisioningFailed(c: { json: (body: unknown, status: 502) => Response }, e: CfError): Response {
+  console.error(`provisioning failed at ${e.step}: ${e.message}`);
+  return c.json({ error: 'provisioning_failed', message: 'Could not set up remote access. Try again in a moment.' }, 502);
+}
+
 export const MAX_DEVICES = 5;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 
@@ -53,7 +59,7 @@ devices.post('/devices', async (c) => {
   } catch (e) {
     await rollback();
     if (e instanceof CfError) {
-      return c.json({ error: 'cloudflare_error', step: e.step, message: e.message }, 502);
+      return provisioningFailed(c, e);
     }
     throw e;
   }
@@ -97,7 +103,7 @@ const notFound = (c: Context<AppEnv>) => c.json({ error: 'not_found' }, 404);
 function cfFail(c: Context<AppEnv>, e: unknown) {
   if (e instanceof CfError) {
     if (e.status === 404) return c.json({ error: 'tunnel_not_found', step: e.step }, 404);
-    return c.json({ error: 'cloudflare_error', step: e.step, message: e.message }, 502);
+    return provisioningFailed(c, e);
   }
   throw e;
 }
@@ -207,7 +213,7 @@ devices.delete('/devices/:id', async (c) => {
     await gone(api.cleanConnections(d.tunnel_id));
     await gone(api.deleteTunnel(d.tunnel_id));
   } catch (e) {
-    if (e instanceof CfError) return c.json({ error: 'cloudflare_error', step: e.step, message: e.message }, 502);
+    if (e instanceof CfError) return provisioningFailed(c, e);
     throw e;
   }
   await c.env.DB.prepare('DELETE FROM devices WHERE id = ?').bind(d.id).run();

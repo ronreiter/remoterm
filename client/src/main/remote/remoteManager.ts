@@ -76,6 +76,13 @@ export interface RemoteManagerDeps {
 
 export const DEVICE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/
 
+/** The tunnel provider is an implementation detail: raw connector output goes to logs only. */
+function userFacingTunnel(s: CloudflaredStatus): CloudflaredStatus {
+  if (s.state !== 'error') return s
+  if (/not installed/i.test(s.message)) return { state: 'error', message: 'Remote access component is missing. Reinstall Remoterm.' }
+  return { state: 'error', message: 'Connection lost. Retrying…' }
+}
+
 function describeError(e: unknown): string {
   if (e instanceof DeviceApiError) {
     switch (e.code) {
@@ -83,8 +90,9 @@ function describeError(e: unknown): string {
         return 'You already have 5 devices registered. Remove one before adding this Mac.'
       case 'name_taken':
         return 'A device with this name already exists. Choose another device name.'
-      case 'cloudflare_error':
-        return `Cloudflare error: ${e.message}`
+      case 'provisioning_failed':
+      case 'cloudflare_error': // older API versions
+        return 'Could not set up remote access. Try again in a moment.'
       default:
         return e.message
     }
@@ -108,6 +116,7 @@ export class RemoteManager {
     const saved = d.store.load()
     this.cfg = { enabled: false, deviceName: d.defaultDeviceName(), preventSleep: false, ...saved }
     this.cloudflared = d.createCloudflared((s) => {
+      if (s.state === 'error') console.error('REMOTE_TUNNEL_ERROR:', s.message)
       this.tunnel = s
       this.emit()
     })
@@ -123,7 +132,7 @@ export class RemoteManager {
       deviceId: this.cfg.deviceId,
       hostname: this.cfg.hostname,
       port: this.cfg.port,
-      tunnel: this.tunnel,
+      tunnel: userFacingTunnel(this.tunnel),
       preventSleep: this.cfg.preventSleep,
       error: this.error
     }
