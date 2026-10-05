@@ -21,6 +21,7 @@ export async function main(argv: string[]): Promise<number> {
   const ctx: Ctx = {
     config: loadConfig(),
     out: (s) => void process.stdout.write(s),
+    color: !!process.stdout.isTTY && !process.env.NO_COLOR,
     err: (s) => void process.stderr.write(s),
     fetch,
     openBrowser: openBrowserDefault

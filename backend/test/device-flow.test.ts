@@ -55,12 +55,21 @@ describe('CLI device-code flow', () => {
     expect(await res.json()).toMatchObject({ error: 'invalid_grant' });
   });
 
-  it('GET /link renders a form', async () => {
+  it('GET /link renders the designed code form', async () => {
     const res = await api('/link?code=ABCD-EFGH');
     expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
     const html = await res.text();
-    expect(html).toContain('<form');
-    expect(html).toContain('ABCD-EFGH');
+    expect(html).toContain('<form method="post" action="/link"');
+    expect(html).toContain('value="ABCD-EFGH"');
+    expect(html).toContain('Continue with GitHub');
+    expect(html).toContain('remoterm login'); // anti-phishing hint
+    expect(html).not.toMatch(/<script[^>]+src=|<link[^>]+stylesheet/); // fully self-contained
+  });
+
+  it('GET /link escapes the code it echoes back', async () => {
+    const html = await (await api('/link?code=%22%3E%3Cscript%3Ex%3C%2Fscript%3E')).text();
+    expect(html).not.toContain('"><script>x</script>');
   });
 
   it('POST /link with an unknown code is 404', async () => {
@@ -76,7 +85,10 @@ describe('CLI device-code flow', () => {
     mockGithub();
     const cb = await api(`/auth/github/callback?code=gh&state=${stateFrom(link)}`);
     expect(cb.status).toBe(200);
-    expect(await cb.text()).toContain('Signed in');
+    const done = await cb.text();
+    expect(done).toContain('signed in as');
+    expect(done).toContain('@octocat');
+    expect(done).toContain('Return to your terminal');
 
     const poll = await api('/auth/device/token', json({ device_code: d.device_code }));
     expect(poll.status).toBe(200);

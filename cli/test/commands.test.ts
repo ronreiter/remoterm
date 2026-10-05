@@ -64,6 +64,19 @@ describe('pollDeviceToken', () => {
 })
 
 describe('login / logout', () => {
+  it('uses colour only when ctx.color is set', async () => {
+    const { f } = mockFetch((url) => {
+      if (url.endsWith('/auth/device')) return { body: start }
+      if (url.endsWith('/auth/device/token')) return { body: { refresh_token: 'RT' } }
+      if (url.endsWith('/auth/refresh')) return { body: { access_token: 'AT', expires_in: 600 } }
+      if (url.endsWith('/me')) return { body: { id: 'u1', login: 'octocat' } }
+    })
+    const { ctx, out } = ctxWith(f)
+    ctx.color = true
+    await login(ctx)
+    expect(out.join('')).toMatch(/\x1b\[1m.*ABCD-EFGH/)
+  })
+
   it('prints code + URL, opens the browser, stores credentials 0600', async () => {
     const { f } = mockFetch((url) => {
       if (url.endsWith('/auth/device')) return { body: start }
@@ -78,6 +91,11 @@ describe('login / logout', () => {
     expect(opened).toEqual(['https://api.test/link?code=ABCD-EFGH'])
     expect(readCredentials(ctx.config.credentialsPath)).toEqual({ refresh_token: 'RT', api: 'https://api.test', login: 'octocat' })
     expect(statSync(ctx.config.credentialsPath).mode & 0o777).toBe(0o600)
+    const text = out.join('')
+    expect(text).toContain('Sign in to Remoterm')
+    expect(text).toMatch(/Your code:\s+ABCD-EFGH/)
+    expect(text).toContain('✓ Signed in as @octocat')
+    expect(text).not.toMatch(/\x1b\[/) // no colour codes unless enabled
     logout(ctx)
     expect(readCredentials(ctx.config.credentialsPath)).toBeNull()
     expect(out.join('')).toContain('Logged out.')

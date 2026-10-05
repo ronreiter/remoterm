@@ -14,6 +14,7 @@ import {
   upsertUser,
 } from '../lib/session';
 import { approveDeviceCode } from './device-flow';
+import { linkDonePage, linkExpiredPage } from '../lib/linkPages';
 
 const CODE_TTL = 60;
 
@@ -59,12 +60,7 @@ auth.get('/auth/github/callback', async (c) => {
   }
   if (row.client_kind === 'link') {
     const ok = await approveDeviceCode(c.env, row.extra ?? '', userId);
-    return c.html(
-      ok
-        ? '<h1>Remoterm</h1><p>Signed in. You can return to your terminal.</p>'
-        : '<h1>Remoterm</h1><p>That code expired. Run <code>remoterm login</code> again.</p>',
-      ok ? 200 : 400,
-    );
+    return c.html(ok ? linkDonePage(user.login) : linkExpiredPage(), ok ? 200 : 400);
   }
   setRefreshCookie(c, await issueRefresh(c.env, userId, 'web'));
   return c.redirect(`${c.env.WEB_ORIGIN}/`, 302);

@@ -11,6 +11,13 @@ export interface Ctx {
   fetch: FetchLike
   openBrowser: (url: string) => void
   sleep?: (ms: number) => Promise<void>
+  /** ANSI styling (set for TTYs without NO_COLOR). */
+  color?: boolean
+}
+
+function styler(on: boolean | undefined) {
+  const w = (code: string) => (s: string) => (on ? `\x1b[${code}m${s}\x1b[0m` : s)
+  return { bold: w('1'), dim: w('2'), green: w('32'), cyan: w('36') }
 }
 
 export function tunnelOrigin(deviceId: string, tunnelDomain: string): string {
@@ -42,8 +49,14 @@ export function apiFromCredentials(ctx: Ctx): Api {
 export async function login(ctx: Ctx): Promise<void> {
   const start = await startDeviceLogin(ctx.config.api, ctx.fetch)
   const url = `${start.verification_uri}?code=${encodeURIComponent(start.user_code)}`
-  ctx.out(`To sign in, open:\n  ${start.verification_uri}\nand enter the code:  ${start.user_code}\n`)
-  ctx.out(`(opening ${url} in your browser; waiting for approval...)\n`)
+  const st = styler(ctx.color)
+  ctx.out(
+    `\n  ${st.bold('Sign in to Remoterm')}\n\n` +
+      `  Your code:  ${st.bold(st.cyan(start.user_code))}\n\n` +
+      `  ${st.dim('Opening')} ${url}\n` +
+      `  ${st.dim(`If it doesn't open, visit ${start.verification_uri} and enter the code.`)}\n\n` +
+      `  ${st.dim('Waiting for approval…')}\n`
+  )
   ctx.openBrowser(url)
   const refresh = await pollDeviceToken(ctx.config.api, start, { fetch: ctx.fetch, sleep: ctx.sleep })
   let loginName: string | undefined
@@ -53,7 +66,7 @@ export async function login(ctx: Ctx): Promise<void> {
     /* cosmetic only */
   }
   writeCredentials(ctx.config.credentialsPath, { refresh_token: refresh, api: ctx.config.api, login: loginName })
-  ctx.out(`Logged in${loginName ? ` as ${loginName}` : ''}.\n`)
+  ctx.out(`\n${st.green('✓')} Signed in${loginName ? ` as ${st.bold(`@${loginName}`)}` : ''}\n`)
 }
 
 export function logout(ctx: Ctx): void {
