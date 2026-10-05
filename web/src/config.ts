@@ -1,7 +1,7 @@
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {}
 
 export const API_ORIGIN: string = (env.VITE_API_ORIGIN || 'https://api.remoterm.io').replace(/\/$/, '')
-export const TUNNEL_DOMAIN: string = env.VITE_TUNNEL_DOMAIN || 't.remoterm.io'
+export const TUNNEL_DOMAIN: string = env.VITE_TUNNEL_DOMAIN || 'remoterm.io'
 
 /** Loopback tunnel domains (used by e2e tests and local dev) are plain http/ws; everything else is TLS. */
 function insecure(domain: string): boolean {

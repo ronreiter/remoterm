@@ -32,7 +32,7 @@ describe('POST /devices', () => {
     expect(res.status).toBe(201);
     const out = (await res.json()) as { deviceId: string; hostname: string; tunnelToken: string };
     expect(out.deviceId).toMatch(/^[a-z2-7]{12}$/);
-    expect(out.hostname).toBe(`${out.deviceId}.t.remoterm.io`);
+    expect(out.hostname).toBe(`${out.deviceId}.remoterm.io`);
     expect(out.tunnelToken).toBe('TOKEN-1');
 
     expect(cf.calls).toEqual([
@@ -52,7 +52,7 @@ describe('POST /devices', () => {
       {
         method: 'POST',
         path: ZONE,
-        body: { type: 'CNAME', proxied: true, name: `${out.deviceId}.t`, content: 'tun-1.cfargotunnel.com' },
+        body: { type: 'CNAME', proxied: true, name: out.deviceId, content: 'tun-1.cfargotunnel.com' },
       },
     ]);
 

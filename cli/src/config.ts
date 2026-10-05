@@ -2,7 +2,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 
 export const DEFAULT_API = 'https://api.remoterm.io'
-export const DEFAULT_TUNNEL_DOMAIN = 't.remoterm.io'
+export const DEFAULT_TUNNEL_DOMAIN = 'remoterm.io'
 
 export interface Config {
   api: string

@@ -62,7 +62,7 @@ const ELECTRON_API_MOCK = `
     },
     remoteSetEnabled: async (on) => {
       window.__remote.calls.push(['setEnabled', on]);
-      window.__pushRemote({ enabled: on, tunnel: { state: on ? 'connecting' : 'stopped' }, hostname: on ? 'abc123.t.remoterm.io' : undefined });
+      window.__pushRemote({ enabled: on, tunnel: { state: on ? 'connecting' : 'stopped' }, hostname: on ? 'abc123.remoterm.io' : undefined });
     },
     remoteSetDeviceName: async (name) => {
       window.__remote.calls.push(['setDeviceName', name]);
@@ -598,7 +598,7 @@ test.describe('Settings › Remote access', () => {
     expect(await remoteCalls(page)).toContainEqual(['setEnabled', true])
     await expect(page.getByTestId('remote-status')).toContainText('Connecting')
     await expect(page.getByTestId('remote-status-light')).toHaveClass(/bg-orange-400/)
-    await expect(page.getByText('abc123.t.remoterm.io')).toBeVisible()
+    await expect(page.getByText('abc123.remoterm.io')).toBeVisible()
 
     await page.evaluate(() => (window as any).__pushRemote({ tunnel: { state: 'connected' } }))
     await expect(page.getByTestId('remote-status')).toContainText('Connected')

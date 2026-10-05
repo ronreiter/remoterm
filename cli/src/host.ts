@@ -4,7 +4,7 @@ export class HostError extends Error {}
 
 /**
  * Parses the `%h` ssh passes to ProxyCommand: `<device>.remoterm` (device name)
- * or `<deviceId>.<tunnelDomain>` (e.g. `ab12cd.t.remoterm.io`).
+ * or `<deviceId>.<tunnelDomain>` (e.g. `ab12cd.remoterm.io`).
  */
 export function parseHost(host: string, tunnelDomain: string): HostRef {
   const h = host.trim().toLowerCase().replace(/\.$/, '')

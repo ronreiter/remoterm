@@ -32,7 +32,8 @@ devices.post('/devices', async (c) => {
 
   const deviceId = newDeviceId();
   const hostname = `${deviceId}.${c.env.TUNNEL_DOMAIN}`;
-  const dnsName = `${deviceId}.${c.env.DNS_SUFFIX}`;
+  // One label under the zone keeps the host inside the free Universal SSL cert (*.remoterm.io).
+  const dnsName = c.env.DNS_SUFFIX ? `${deviceId}.${c.env.DNS_SUFFIX}` : deviceId;
   const api = cf(c.env);
   let tunnelId: string | undefined;
   let dnsId: string | undefined;

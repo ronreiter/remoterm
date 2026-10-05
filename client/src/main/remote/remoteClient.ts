@@ -8,7 +8,7 @@ import { AccountError } from './account'
  * Every network call lives here so tokens never reach the renderer and there is no CORS.
  */
 
-export const DEFAULT_TUNNEL_DOMAIN = 't.remoterm.io'
+export const DEFAULT_TUNNEL_DOMAIN = 'remoterm.io'
 export const tunnelDomainFromEnv = (env: NodeJS.ProcessEnv = process.env): string =>
   env.REMOTERM_TUNNEL_DOMAIN || DEFAULT_TUNNEL_DOMAIN
 

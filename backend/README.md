@@ -21,7 +21,7 @@ npm run typecheck
    - `JWT_PRIVATE_KEY` - run `npm run gen-jwt-key`, paste the private JWK line
 5. Uncomment the `routes` entry in `wrangler.jsonc` for `api.remoterm.io`, then `wrangler deploy`.
 
-Vars: `TUNNEL_DOMAIN` (`t.remoterm.io`), `DNS_SUFFIX` (`t`; DNS record name is `<deviceId>.<DNS_SUFFIX>`), `GITHUB_CLIENT_ID`, `API_ORIGIN`, `WEB_ORIGIN`, `COOKIE_DOMAIN`.
+Vars: `TUNNEL_DOMAIN` (`remoterm.io`), `DNS_SUFFIX` (empty; DNS record name is `<deviceId>` or `<deviceId>.<DNS_SUFFIX>`; keep hosts one label deep so the free Universal SSL cert `*.remoterm.io` covers them), `GITHUB_CLIENT_ID`, `API_ORIGIN`, `WEB_ORIGIN`, `COOKIE_DOMAIN`.
 
 ## Endpoints
 

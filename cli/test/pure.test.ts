@@ -35,14 +35,14 @@ describe('parseArgs', () => {
 
 describe('parseHost', () => {
   it('parses device names and tunnel hostnames', () => {
-    expect(parseHost('my-mac.remoterm', 't.remoterm.io')).toEqual({ kind: 'name', name: 'my-mac' })
-    expect(parseHost('My-Mac.remoterm', 't.remoterm.io')).toEqual({ kind: 'name', name: 'my-mac' })
-    expect(parseHost('ab12cd.t.remoterm.io', 't.remoterm.io')).toEqual({ kind: 'id', id: 'ab12cd' })
+    expect(parseHost('my-mac.remoterm', 'remoterm.io')).toEqual({ kind: 'name', name: 'my-mac' })
+    expect(parseHost('My-Mac.remoterm', 'remoterm.io')).toEqual({ kind: 'name', name: 'my-mac' })
+    expect(parseHost('ab12cd.remoterm.io', 'remoterm.io')).toEqual({ kind: 'id', id: 'ab12cd' })
     expect(parseHost('ab12cd.t.staging.remoterm.io', 't.staging.remoterm.io')).toEqual({ kind: 'id', id: 'ab12cd' })
   })
   it('rejects other hosts', () => {
-    for (const h of ['example.com', '.remoterm', 'a.b.t.remoterm.io', 'x.t.other.io']) {
-      expect(() => parseHost(h, 't.remoterm.io')).toThrow(HostError)
+    for (const h of ['example.com', '.remoterm', 'a.b.remoterm.io', 'x.t.other.io']) {
+      expect(() => parseHost(h, 'remoterm.io')).toThrow(HostError)
     }
   })
 })
@@ -53,7 +53,7 @@ describe('config', () => {
     expect(c).toEqual({ api: 'http://localhost:8787', tunnelDomain: 't.staging.remoterm.io', credentialsPath: '/x/cfg/remoterm/credentials' })
     const d = loadConfig({ HOME: '/home/u' })
     expect(d.api).toBe('https://api.remoterm.io')
-    expect(d.tunnelDomain).toBe('t.remoterm.io')
+    expect(d.tunnelDomain).toBe('remoterm.io')
     expect(d.credentialsPath).toBe('/home/u/.config/remoterm/credentials')
   })
 })

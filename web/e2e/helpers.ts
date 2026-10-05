@@ -53,10 +53,10 @@ export async function mockApi(
     if (req.headers()['authorization'] !== 'Bearer api-jwt') return json(401, { error: 'unauthorized' })
     if (url.pathname === '/me') return json(200, { id: 'u1', login: 'octocat' })
     if (url.pathname === '/devices') {
-      return json(200, devices.map((d) => ({ ...d, hostname: `${d.id}.t.remoterm.io`, port: 7000, created_at: 1 })))
+      return json(200, devices.map((d) => ({ ...d, hostname: `${d.id}.remoterm.io`, port: 7000, created_at: 1 })))
     }
     const m = /^\/devices\/([^/]+)\/attach-token$/.exec(url.pathname)
-    if (m && req.method() === 'POST') return json(200, { token: `attach-${m[1]}`, hostname: `${m[1]}.t.remoterm.io`, expires_in: 600 })
+    if (m && req.method() === 'POST') return json(200, { token: `attach-${m[1]}`, hostname: `${m[1]}.remoterm.io`, expires_in: 600 })
     return json(404, { error: 'not_found' })
   })
   return mock

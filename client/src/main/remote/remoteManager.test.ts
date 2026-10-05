@@ -15,7 +15,7 @@ function build(over: { signedIn?: boolean; config?: Partial<RemoteConfig> | null
   const device = {
     register: vi.fn(async (name: string, port: number) => {
       log.push(`register:${name}:${port}`)
-      return { deviceId: 'dev1', hostname: 'dev1.t.remoterm.io', tunnelToken: 'TT-new' }
+      return { deviceId: 'dev1', hostname: 'dev1.remoterm.io', tunnelToken: 'TT-new' }
     }),
     updatePort: vi.fn(async (id: string, port: number) => void log.push(`updatePort:${id}:${port}`)),
     getTunnelToken: vi.fn(async (id: string) => {
@@ -77,7 +77,7 @@ describe('RemoteManager.enable', () => {
     const t = build({ config: null })
     await t.m.enable()
     expect(t.log).toEqual(['server.start:4100', 'register:default-mac:4100', 'auth.start:dev1', 'cf.start:TT-new'])
-    expect(t.saved()).toMatchObject({ enabled: true, deviceId: 'dev1', hostname: 'dev1.t.remoterm.io', port: 4100, deviceName: 'default-mac' })
+    expect(t.saved()).toMatchObject({ enabled: true, deviceId: 'dev1', hostname: 'dev1.remoterm.io', port: 4100, deviceName: 'default-mac' })
     const s = t.m.getStatus()
     expect(s).toMatchObject({ enabled: true, signedIn: true, login: 'octocat', deviceId: 'dev1', port: 4100, busy: false })
     expect(s.tunnel).toEqual({ state: 'connecting' })

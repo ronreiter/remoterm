@@ -127,8 +127,8 @@ describe('token hygiene', () => {
 
 describe('agent URLs', () => {
   it('uses TLS for real domains and plain http for loopback', () => {
-    expect(agentHttpOrigin('d1', 't.remoterm.io')).toBe('https://d1.t.remoterm.io')
-    expect(agentWsUrl('d1', 's 1', 'view', 't.remoterm.io')).toBe('wss://d1.t.remoterm.io/ws/attach/s%201?mode=view')
+    expect(agentHttpOrigin('d1', 'remoterm.io')).toBe('https://d1.remoterm.io')
+    expect(agentWsUrl('d1', 's 1', 'view', 'remoterm.io')).toBe('wss://d1.remoterm.io/ws/attach/s%201?mode=view')
     expect(agentHttpOrigin('d1', 'localhost:9000')).toBe('http://d1.localhost:9000')
     expect(agentWsUrl('d1', 's', 'control', 'localhost:9000')).toBe('ws://d1.localhost:9000/ws/attach/s?mode=control')
   })

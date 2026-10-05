@@ -21,7 +21,7 @@ Usage:
 
 Environment:
   REMOTERM_API              API origin (default https://api.remoterm.io)
-  REMOTERM_TUNNEL_DOMAIN    Tunnel domain (default t.remoterm.io)
+  REMOTERM_TUNNEL_DOMAIN    Tunnel domain (default remoterm.io)
 `
 
 export function parseArgs(argv: string[]): ParsedArgs {

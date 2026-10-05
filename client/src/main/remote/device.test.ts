@@ -20,8 +20,8 @@ function mk(responses: Record<string, { status?: number; json?: unknown }>) {
 
 describe('DeviceClient', () => {
   it('registers a device', async () => {
-    const { client, calls } = mk({ 'POST /devices': { status: 201, json: { deviceId: 'abc', hostname: 'abc.t.remoterm.io', tunnelToken: 'TT' } } })
-    expect(await client.register('my-mac', 5555)).toEqual({ deviceId: 'abc', hostname: 'abc.t.remoterm.io', tunnelToken: 'TT' })
+    const { client, calls } = mk({ 'POST /devices': { status: 201, json: { deviceId: 'abc', hostname: 'abc.remoterm.io', tunnelToken: 'TT' } } })
+    expect(await client.register('my-mac', 5555)).toEqual({ deviceId: 'abc', hostname: 'abc.remoterm.io', tunnelToken: 'TT' })
     expect(calls).toEqual([{ method: 'POST', path: '/devices', body: { name: 'my-mac', port: 5555 }, auth: 'Bearer AT' }])
   })
 

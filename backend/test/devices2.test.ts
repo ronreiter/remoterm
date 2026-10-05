@@ -38,7 +38,7 @@ describe('GET /devices', () => {
     const mac = list.find((d) => d.name === 'mac');
     expect(mac).toMatchObject({
       id: 'listaaaaaaaa',
-      hostname: 'listaaaaaaaa.t.remoterm.io',
+      hostname: 'listaaaaaaaa.remoterm.io',
       online: true,
       last_seen: 1234,
       port: 7000,
@@ -75,7 +75,7 @@ describe('PUT /devices/:id/port', () => {
     expect(cf.calls[0].body).toEqual({
       config: {
         ingress: [
-          { hostname: 'portaaaaaaaa.t.remoterm.io', service: 'http://localhost:9000' },
+          { hostname: 'portaaaaaaaa.remoterm.io', service: 'http://localhost:9000' },
           { service: 'http_status:404' },
         ],
       },
@@ -126,7 +126,7 @@ describe('POST /devices/:id/attach-token', () => {
     expect(c.aud).toBe('attaaaaaaaaa');
     expect(c.sub).toBe('user1');
     expect(c.exp! - c.iat!).toBe(600);
-    expect(out.hostname).toBe('attaaaaaaaaa.t.remoterm.io');
+    expect(out.hostname).toBe('attaaaaaaaaa.remoterm.io');
   });
 
   it("is 404 for someone else's device", async () => {

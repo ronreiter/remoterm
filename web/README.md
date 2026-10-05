@@ -18,7 +18,7 @@ npm run build         # tsc + vite build -> dist/
 
 ## Config (Vite env, build time)
 
-`VITE_API_ORIGIN` (default `https://api.remoterm.io`), `VITE_TUNNEL_DOMAIN` (default `t.remoterm.io`). Tunnel domains starting with `localhost`/`127.` use plain http/ws (used by the e2e tests).
+`VITE_API_ORIGIN` (default `https://api.remoterm.io`), `VITE_TUNNEL_DOMAIN` (default `remoterm.io`). Tunnel domains starting with `localhost`/`127.` use plain http/ws (used by the e2e tests).
 
 ## Deploy (owner)
 
@@ -27,4 +27,4 @@ npm run build         # tsc + vite build -> dist/
 ## Requirements on other components
 
 - Backend: `WEB_ORIGIN` must equal the deployed origin (CORS + OAuth redirect).
-- Host agent: the browser calls `https://<id>.t.remoterm.io/api/sessions` cross-origin from `app.remoterm.io`, so the agent must answer an unauthenticated `OPTIONS` preflight and add `Access-Control-Allow-Origin: https://app.remoterm.io` (+ `Access-Control-Allow-Headers: authorization`) to `/api/*` responses.
+- Host agent: the browser calls `https://<id>.remoterm.io/api/sessions` cross-origin from `app.remoterm.io`, so the agent must answer an unauthenticated `OPTIONS` preflight and add `Access-Control-Allow-Origin: https://app.remoterm.io` (+ `Access-Control-Allow-Headers: authorization`) to `/api/*` responses.
