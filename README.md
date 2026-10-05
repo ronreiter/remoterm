@@ -100,6 +100,20 @@ owner attach to running sessions through a Cloudflare Tunnel (Settings > Remote 
   The client tests use node-pty with the Node ABI; if `postinstall` (electron-rebuild) replaced
   it with the Electron ABI build, try `npm run test:unit:electron` (runs vitest under ELECTRON_RUN_AS_NODE; not yet verified).
 
+## Deploying the backend and web app
+
+Production runs on Cloudflare: the Worker `remoterm-api` (api.remoterm.io, D1 database `remoterm`) and the static site `remoterm-web` (app.remoterm.io). Each Mac's tunnel is `<deviceId>.remoterm.io`.
+
+```bash
+task deploy:setup   # first time only, in a real terminal: wrangler login, D1, Worker secrets
+task deploy         # migrate D1, deploy api + web, smoke-test both
+task api:tail       # live Worker logs
+```
+
+`task api:secrets` reads the scoped Cloudflare token (Cloudflare One Connectors Write + DNS Write on remoterm.io) from `CF_TOKEN_FILE` (default `~/.config/remoterm-deploy/cf-worker-api-token`), generates `JWT_PRIVATE_KEY` if missing, and prompts for `GITHUB_CLIENT_SECRET` if missing. `FORCE=1` rotates them (rotating the JWT key signs everyone out).
+
+Other useful tasks: `task test:all`, `task typecheck:all`, `task api:dev`, `task web:dev`, `task cli:link`. Run `task` for the full list.
+
 ## Contributing
 
 Contributions are welcome! Here's how to get started:

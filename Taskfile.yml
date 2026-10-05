@@ -1,13 +1,26 @@
 version: '3'
 
+# Remoterm monorepo tasks. `task` lists everything.
+#   client/            Electron app          (task dev / build / package / release)
+#   backend/           api.remoterm.io       (task api:*)
+#   web/               app.remoterm.io       (task web:*)
+#   cli/               `remoterm` CLI        (task cli:*)
+#   packages/protocol  shared wire protocol  (task protocol:*)
+# Deploys need an interactive terminal the first time (wrangler login, GitHub secret prompt).
+
+vars:
+  WRANGLER_API: ./node_modules/.bin/wrangler
+
 tasks:
   default:
     silent: true
     cmds:
       - task --list
 
+  # ---------------------------------------------------------------- app (client/)
+
   install:
-    desc: Install npm dependencies
+    desc: Install app dependencies (rebuilds node-pty for Electron)
     dir: client
     cmds:
       - npm install
@@ -16,7 +29,7 @@ tasks:
       - package-lock.json
 
   dev:
-    desc: Start dev server
+    desc: Run the app in development mode
     deps: [install]
     dir: client
     cmds:
@@ -30,22 +43,31 @@ tasks:
       - npm run build
 
   test:
-    desc: Run Playwright tests
+    desc: Run the app's Playwright tests (PW_PORT overrides the dev-server port)
     deps: [install]
     dir: client
     cmds:
       - npx playwright test
 
   test-unit:
-    desc: Run Vitest unit/integration tests (client main process + packages/protocol)
+    desc: Run the app's Vitest tests (main process, host agent, SSH)
     deps: [install]
+    dir: client
     cmds:
-      - cd client && npm run test:unit
-      - cd packages/protocol && npm install && npm test
+      - npm run test:unit
+
+  fetch-cloudflared:
+    desc: Download the pinned cloudflared binaries into client/resources/bin
+    dir: client
+    cmds:
+      - bash scripts/fetch-cloudflared.sh
+    status:
+      - test -x resources/bin/cloudflared-darwin-arm64
+      - test -x resources/bin/cloudflared-darwin-x64
 
   package:
     desc: Package the app for distribution
-    deps: [build]
+    deps: [build, fetch-cloudflared]
     dir: client
     env:
       APPLE_API_KEY_ID: 2ZR5277S92
@@ -53,7 +75,6 @@ tasks:
       APPLE_API_KEY: "{{.HOME}}/private_keys/AuthKey_2ZR5277S92.p8"
       APPLE_TEAM_ID: 8BKF8DY7Y4
     cmds:
-      - bash scripts/fetch-cloudflared.sh
       - npm run package
 
   bump:
@@ -80,4 +101,212 @@ tasks:
   clean:
     desc: Remove build artifacts
     cmds:
-      - rm -rf client/dist client/out client/release
+      - rm -rf client/dist client/out client/release web/dist cli/dist
+
+  # ---------------------------------------------------------------- api (backend/)
+
+  api:install:
+    desc: Install backend dependencies
+    dir: backend
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+
+  api:dev:
+    desc: Run the Worker locally (wrangler dev, local D1)
+    deps: [api:install]
+    dir: backend
+    cmds:
+      - npm run migrate:local
+      - npm run dev
+
+  api:test:
+    desc: Run backend tests (Miniflare D1, stubbed Cloudflare/GitHub APIs)
+    deps: [api:install]
+    dir: backend
+    cmds:
+      - npm test
+
+  api:login:
+    desc: Log wrangler in to Cloudflare (opens the browser; interactive)
+    deps: [api:install]
+    dir: backend
+    interactive: true
+    cmds:
+      - "{{.WRANGLER_API}} login"
+    status:
+      - "{{.WRANGLER_API}} whoami 2>/dev/null | grep -q 'You are logged in'"
+
+  api:db:create:
+    desc: Create the remoterm D1 database if missing and write its id into wrangler.jsonc
+    deps: [api:install]
+    cmds:
+      - bash scripts/deploy/d1-create.sh
+
+  api:db:migrate:
+    desc: Apply D1 migrations to the production database
+    deps: [api:install]
+    dir: backend
+    cmds:
+      - "{{.WRANGLER_API}} d1 migrations apply remoterm --remote"
+
+  api:secrets:
+    desc: "Set Worker secrets (CF_API_TOKEN from CF_TOKEN_FILE; JWT key + GitHub secret only if missing; FORCE=1 to rotate)"
+    deps: [api:install]
+    interactive: true
+    cmds:
+      - bash scripts/deploy/secrets.sh
+
+  api:deploy:
+    desc: Migrate D1 and deploy the Worker to api.remoterm.io
+    deps: [api:install]
+    dir: backend
+    cmds:
+      - task: api:db:migrate
+      - "{{.WRANGLER_API}} deploy"
+
+  api:tail:
+    desc: Stream live Worker logs
+    deps: [api:install]
+    dir: backend
+    interactive: true
+    cmds:
+      - "{{.WRANGLER_API}} tail"
+
+  api:gen-jwt-key:
+    desc: Print a fresh Ed25519 JWT key pair
+    deps: [api:install]
+    dir: backend
+    cmds:
+      - npm run -s gen-jwt-key
+
+  # ---------------------------------------------------------------- web (web/)
+
+  web:install:
+    desc: Install web app dependencies
+    dir: web
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+
+  web:dev:
+    desc: Run the web terminal locally (Vite)
+    deps: [web:install]
+    dir: web
+    cmds:
+      - npm run dev
+
+  web:test:
+    desc: Run web unit tests and Playwright e2e
+    deps: [web:install]
+    dir: web
+    cmds:
+      - npm test
+      - npm run test:e2e
+
+  web:build:
+    desc: Typecheck and build the web app
+    deps: [web:install]
+    dir: web
+    cmds:
+      - npm run build
+
+  web:deploy:
+    desc: Build and deploy the web app to app.remoterm.io
+    deps: [web:build]
+    dir: web
+    cmds:
+      - ./node_modules/.bin/wrangler deploy
+
+  # ---------------------------------------------------------------- cli (cli/)
+
+  cli:install:
+    desc: Install CLI dependencies
+    dir: cli
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+
+  cli:build:
+    desc: Bundle the remoterm CLI into cli/dist/remoterm.cjs
+    deps: [cli:install]
+    dir: cli
+    cmds:
+      - npm run build
+
+  cli:test:
+    desc: Run CLI tests
+    deps: [cli:install]
+    dir: cli
+    cmds:
+      - npm test
+
+  cli:link:
+    desc: Build and `npm link` the CLI so `remoterm` is on your PATH
+    deps: [cli:build]
+    dir: cli
+    cmds:
+      - npm link
+
+  cli:publish:
+    desc: Publish the remoterm CLI to npm
+    deps: [cli:build, cli:test]
+    dir: cli
+    interactive: true
+    cmds:
+      - npm publish
+
+  # ---------------------------------------------------------------- shared
+
+  protocol:test:
+    desc: Run packages/protocol tests
+    dir: packages/protocol
+    cmds:
+      - npm install
+      - npm test
+
+  # ---------------------------------------------------------------- everything
+
+  deploy:setup:
+    desc: "First-time production setup: wrangler login, D1, Worker secrets (interactive)"
+    cmds:
+      - task: api:login
+      - task: api:db:create
+      - task: api:secrets
+
+  deploy:
+    desc: Deploy api.remoterm.io and app.remoterm.io
+    cmds:
+      - task: api:deploy
+      - task: web:deploy
+      - task: deploy:check
+
+  deploy:check:
+    desc: Smoke-test the production endpoints
+    cmds:
+      - curl -fsS -o /dev/null -w "api  /.well-known/jwks.json → %{http_code}\n" https://api.remoterm.io/.well-known/jwks.json
+      - curl -fsS -o /dev/null -w "app  /                      → %{http_code}\n" https://app.remoterm.io/
+
+  test:all:
+    desc: Run every test suite (app unit + e2e, backend, web, cli, protocol)
+    cmds:
+      - task: test-unit
+      - task: test
+      - task: api:test
+      - task: web:test
+      - task: cli:test
+      - task: protocol:test
+
+  typecheck:all:
+    desc: Typecheck backend, web, cli and protocol
+    cmds:
+      - cd backend && npx tsc --noEmit
+      - cd web && npx tsc --noEmit
+      - cd cli && npx tsc --noEmit
+      - cd packages/protocol && npx tsc --noEmit

@@ -27,14 +27,9 @@
 		{
 			"binding": "DB",
 			"database_name": "remoterm",
-			// Run `wrangler d1 create remoterm` and paste the id here.
+			// Created by `task api:db:create` (fills in this id).
 			"database_id": "552be8ff-877d-4deb-89f8-2460e421982d",
 			"migrations_dir": "migrations"
-		},
-		{
-			"binding": "remoterm",
-			"database_name": "remoterm",
-			"database_id": "552be8ff-877d-4deb-89f8-2460e421982d"
 		}
 	]
 	// Secrets (wrangler secret put <NAME>): GITHUB_CLIENT_SECRET, CF_API_TOKEN, JWT_PRIVATE_KEY
