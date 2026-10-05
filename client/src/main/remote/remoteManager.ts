@@ -154,6 +154,12 @@ export class RemoteManager {
     if (this.cfg.enabled && this.d.account.state.signedIn) await this.enable()
   }
 
+  /** After an interactive sign-in: the user signed in to go remote, so turn it on. */
+  async onSignedIn(): Promise<void> {
+    if (!this.d.account.state.signedIn || this.running) return
+    await this.enable()
+  }
+
   enable(): Promise<void> {
     return this.serial(() => this.doEnable())
   }
@@ -223,9 +229,11 @@ export class RemoteManager {
 
   private async doEnable(): Promise<void> {
     if (this.running) return
+    console.log('REMOTE_ENABLE: start')
     this.error = undefined
     if (!this.d.account.state.signedIn) {
       this.error = 'Sign in first'
+      console.warn('REMOTE_ENABLE: not signed in')
       this.emit()
       return
     }
@@ -276,6 +284,7 @@ export class RemoteManager {
       this.cfg.enabled = false
       this.save()
       this.error = describeError(e)
+      console.error('REMOTE_ENABLE_FAILED:', e)
     } finally {
       this.busy = false
       this.emit()

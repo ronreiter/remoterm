@@ -145,9 +145,11 @@ export function createRemoteService(d: RemoteServiceDeps) {
       .handleCallbackUrl(url)
       .then((handled) => {
         if (handled) {
+          console.log(`REMOTE_SIGNED_IN: @${account.state.login ?? '?'}`)
           const w = d.getMainWindow()
           w?.show()
           w?.focus()
+          void manager.onSignedIn()
         }
       })
       .catch((e) => console.error('REMOTE_SIGN_IN_FAILED:', e instanceof Error ? e.message : e))

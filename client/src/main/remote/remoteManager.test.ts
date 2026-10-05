@@ -234,6 +234,24 @@ describe('resume and settings', () => {
     expect(t.m.getStatus().enabled).toBe(true)
   })
 
+  it('onSignedIn() turns remote access on right after an interactive sign-in', async () => {
+    const t = build({ config: null })
+    await t.m.onSignedIn()
+    expect(t.device.register).toHaveBeenCalledOnce()
+    expect(t.m.getStatus().enabled).toBe(true)
+    expect(t.saved()).toMatchObject({ enabled: true, deviceId: 'dev1' })
+  })
+
+  it('onSignedIn() does nothing when signed out or already running', async () => {
+    const out = build({ config: null, signedIn: false })
+    await out.m.onSignedIn()
+    expect(out.device.register).not.toHaveBeenCalled()
+    const on = build({ config: null })
+    await on.m.enable()
+    await on.m.onSignedIn()
+    expect(on.device.register).toHaveBeenCalledOnce()
+  })
+
   it('resume() does nothing when not enabled or signed out', async () => {
     const a = build({ config: { enabled: false } })
     await a.m.resume()
