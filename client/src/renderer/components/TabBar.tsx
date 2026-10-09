@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { useStore, COLOR_HEX } from '../store'
+import RemoteViewerDot from './RemoteViewerDot'
 import iconUrl from '../../../resources/icon.png?url'
 
 export default function TabBar() {
@@ -94,7 +95,16 @@ export default function TabBar() {
                     title={session.colorLabel}
                   />
                 )}
+                {session.remote && (
+                  <span
+                    data-testid="remote-badge"
+                    className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-terminal-accent/15 text-terminal-accent"
+                  >
+                    remote · {session.remote.deviceName}
+                  </span>
+                )}
                 <span className="truncate" title={session.name}>{session.name}</span>
+                <RemoteViewerDot sessionId={tabId} />
                 {hasActivity && !isActive && (
                   <span className="w-2 h-2 rounded-full bg-terminal-accent flex-shrink-0" />
                 )}

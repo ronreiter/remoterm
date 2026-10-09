@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react'
 import { useTerminal } from '../hooks/useTerminal'
 import { useStore } from '../store'
+import { remoteStatusLabel } from '../services/remoteFormat'
 import '@xterm/xterm/css/xterm.css'
 
 export interface TerminalHandle {
@@ -22,6 +23,10 @@ const TerminalComponent = forwardRef<TerminalHandle, Props>(({ sessionId }, ref)
   const isBusy = useStore((s) => s.busySessionIds.has(sessionId))
   const loaded = useStore((s) => s.loadedSessionIds.has(sessionId))
   const { initTerminal, terminalRef, searchAddonRef } = useTerminal(sessionId)
+  const remote = useStore((s) => s.sessions.find((x) => x.id === sessionId)?.remote)
+  const rt = useStore((s) => s.remoteTabs[sessionId])
+  const closeTab = useStore((s) => s.closeTab)
+  const restartSession = useStore((s) => s.restartSession)
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -116,11 +121,63 @@ const TerminalComponent = forwardRef<TerminalHandle, Props>(({ sessionId }, ref)
           <div className="h-full bg-terminal-accent animate-progress" />
         </div>
       )}
-      {!loaded && (
+      {!loaded && !remote && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-terminal-bg">
           <div className="flex flex-col items-center gap-3">
             <div className="w-5 h-5 border-2 border-terminal-accent/30 border-t-terminal-accent rounded-full animate-spin" />
             <span className="text-xs text-terminal-subtext">Starting session...</span>
+          </div>
+        </div>
+      )}
+      {remote && (rt?.status === 'ended' || rt?.status === 'auth') && (
+        <div data-testid="remote-overlay" className="absolute inset-0 flex items-center justify-center z-10 bg-terminal-bg/80">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="text-sm text-terminal-text">{remoteStatusLabel(rt.status, rt.code, rt.exitCode)}</span>
+            <span className="text-xs text-terminal-subtext">
+              {rt.status === 'auth' ? 'Sign in again to reconnect to ' : 'The session is no longer running on '}
+              {remote.deviceName}.
+            </span>
+            <div className="flex gap-2">
+              {rt.status === 'auth' && (
+                <button
+                  onClick={() => window.electronAPI.remoteSignIn()}
+                  className="px-3 py-1.5 text-xs font-semibold bg-terminal-accent text-terminal-bg rounded-lg hover:opacity-90"
+                >
+                  Sign in
+                </button>
+              )}
+              {rt.status === 'auth' && (
+                <button
+                  onClick={() => restartSession(sessionId)}
+                  className="px-3 py-1.5 text-xs text-terminal-subtext border border-terminal-border rounded-lg hover:text-terminal-text"
+                >
+                  Retry
+                </button>
+              )}
+              {rt.status === 'ended' && (
+                <button
+                  onClick={() => closeTab(sessionId)}
+                  className="px-3 py-1.5 text-xs font-semibold bg-terminal-accent text-terminal-bg rounded-lg hover:opacity-90"
+                >
+                  Close tab
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {remote && (rt?.status === 'connecting' || rt?.status === 'offline' || !rt) && (
+        <div
+          data-testid="remote-connecting"
+          className={`absolute z-10 flex items-center justify-center ${
+            loaded ? 'top-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg bg-terminal-surface border border-terminal-border shadow-lg' : 'inset-0 bg-terminal-bg'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 border-2 border-terminal-accent/30 border-t-terminal-accent rounded-full animate-spin" />
+            <span className="text-xs text-terminal-subtext">
+              {rt?.status === 'offline' ? `${remote.deviceName} is offline — reconnecting…` : `Connecting to ${remote.deviceName}…`}
+            </span>
           </div>
         </div>
       )}

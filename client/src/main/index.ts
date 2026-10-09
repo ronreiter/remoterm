@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage, Notification, safeStorage, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
 import { readdirSync, readFileSync, writeFileSync, statSync, mkdirSync, existsSync } from 'fs'
 import { IPC } from '../shared/ipc-channels'
 import { migrateLegacyData, sessionsDirName, settingsFileName } from './migrate'
+import { PtyHub, type HubClient, type HubHandle } from './remote/ptyHub'
+import { createRemoteService } from './remote/service'
 
 app.setName('Remoterm')
 
@@ -11,6 +13,12 @@ let mainWindow: BrowserWindow | null = null
 
 // Local PTY sessions
 const localPtySessions = new Map<string, ReturnType<typeof import('node-pty').spawn>>()
+
+// PTY hub: every PTY is mirrored and fanned out to its clients. The local renderer
+// is a hub client over the existing IPC channels; remote viewers attach through the
+// agent server (see ./remote).
+const hub = new PtyHub()
+const localHandles = new Map<string, HubHandle>()
 
 
 function createWindow(): void {
@@ -94,10 +102,14 @@ function createWindow(): void {
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 // IPC handlers — session persistence
-function getSessionsPath(): string {
+function getDataDir(): string {
   const dir = join(app.getPath('userData'), sessionsDirName(isDev))
   mkdirSync(dir, { recursive: true })
-  return join(dir, 'sessions.json')
+  return dir
+}
+
+function getSessionsPath(): string {
+  return join(getDataDir(), 'sessions.json')
 }
 
 ipcMain.handle(IPC.LOAD_SESSIONS, () => {
@@ -395,19 +407,27 @@ ipcMain.handle(IPC.LOCAL_PTY_SPAWN, (_event, sessionId: string, command: string,
       }, 500)
     }
 
-    ptyProcess.onData((data: string) => {
-      if (localPtySessions.get(sessionId) === ptyProcess) {
-        mainWindow?.webContents.send(IPC.LOCAL_PTY_OUTPUT, sessionId, data)
-      }
-    })
-
-    ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
-      if (localPtySessions.get(sessionId) === ptyProcess) {
-        console.log(`LOCAL_PTY_EXIT: sessionId=${sessionId} exitCode=${exitCode}`)
-        localPtySessions.delete(sessionId)
-        mainWindow?.webContents.send(IPC.LOCAL_PTY_EXIT, sessionId, exitCode)
-      }
-    })
+    // The local renderer is a hub client; output/exit reach it exactly as before.
+    const localClient: HubClient = {
+      kind: 'local',
+      send: (data) => {
+        if (localPtySessions.get(sessionId) === ptyProcess) {
+          mainWindow?.webContents.send(IPC.LOCAL_PTY_OUTPUT, sessionId, data)
+        }
+      },
+      exit: (exitCode) => {
+        if (localPtySessions.get(sessionId) === ptyProcess) {
+          console.log(`LOCAL_PTY_EXIT: sessionId=${sessionId} exitCode=${exitCode}`)
+          localPtySessions.delete(sessionId)
+          localHandles.delete(sessionId)
+          mainWindow?.webContents.send(IPC.LOCAL_PTY_EXIT, sessionId, exitCode)
+        }
+      },
+      close: () => {}
+    }
+    hub.create(sessionId, ptyProcess)
+    const handle = hub.attach(sessionId, localClient, 'control')
+    if (handle) localHandles.set(sessionId, handle)
 
     return { ok: true, reattached: false }
   } catch (err) {
@@ -417,7 +437,7 @@ ipcMain.handle(IPC.LOCAL_PTY_SPAWN, (_event, sessionId: string, command: string,
 })
 
 ipcMain.on(IPC.LOCAL_PTY_INPUT, (_event, sessionId: string, data: string) => {
-  localPtySessions.get(sessionId)?.write(data)
+  localHandles.get(sessionId)?.write(data)
 })
 
 // Track active session for file drops
@@ -500,13 +520,13 @@ ipcMain.on(IPC.SHOW_NOTIFICATION, (_event, title: string, body: string, sessionI
 // File drop — renderer sends escaped paths, we forward to active PTY
 ipcMain.on(IPC.FILE_DROP, (_event, text: string) => {
   if (activeSessionIdForDrop) {
-    localPtySessions.get(activeSessionIdForDrop)?.write(text)
+    localHandles.get(activeSessionIdForDrop)?.write(text)
   }
 })
 
 ipcMain.on(IPC.LOCAL_PTY_RESIZE, (_event, sessionId: string, cols: number, rows: number) => {
   try {
-    localPtySessions.get(sessionId)?.resize(cols, rows)
+    localHandles.get(sessionId)?.resize(cols, rows)
   } catch {
     // resize may fail if process is exiting
   }
@@ -515,12 +535,15 @@ ipcMain.on(IPC.LOCAL_PTY_RESIZE, (_event, sessionId: string, cols: number, rows:
 ipcMain.handle(IPC.LOCAL_PTY_KILL, (_event, sessionId: string) => {
   const pty = localPtySessions.get(sessionId)
   if (pty) {
+    localPtySessions.delete(sessionId)
+    localHandles.delete(sessionId)
+    // Drop the hub entry first so remote clients are told the session ended.
+    hub.remove(sessionId)
     try {
       pty.kill()
     } catch {
       // already dead
     }
-    localPtySessions.delete(sessionId)
   }
 })
 
@@ -534,6 +557,32 @@ app.on('before-quit', (event) => {
   mainWindow?.webContents.send('quit-confirm', true)
 })
 
+// Remote access (host agent): sign-in, device registration, attach server, cloudflared.
+const remote = createRemoteService({
+  ipcMain,
+  app,
+  safeStorage,
+  powerSaveBlocker,
+  shell,
+  getMainWindow: () => mainWindow,
+  hub,
+  dataDir: getDataDir(),
+  readSessionsFile: () => {
+    try {
+      return JSON.parse(readFileSync(getSessionsPath(), 'utf-8'))
+    } catch {
+      return null
+    }
+  },
+  readSettingsFile: () => {
+    try {
+      return JSON.parse(readFileSync(getSettingsPath(), 'utf-8'))
+    } catch {
+      return null
+    }
+  }
+})
+
 app.whenReady().then(() => {
   for (const line of migrateLegacyData({
     appData: app.getPath('appData'),
@@ -542,6 +591,11 @@ app.whenReady().then(() => {
     isDev
   })) console.log(`MIGRATED: ${line}`)
   createWindow()
+  remote.start().catch((e) => console.error('REMOTE_START_FAILED:', e))
+})
+
+app.on('will-quit', () => {
+  void remote.shutdown()
 })
 
 app.on('window-all-closed', () => {

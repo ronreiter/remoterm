@@ -1,0 +1,36 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "remoterm-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-09-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// remoterm.io is a zone in the account (added 2026-10-04).
+	"routes": [
+		{
+			"pattern": "api.remoterm.io",
+			"custom_domain": true
+		}
+	],
+	"vars": {
+		"CF_ACCOUNT_ID": "b2aeac2ca657bbb40f829cd4054f2cc2",
+		"CF_ZONE_ID": "9983ee60f0545995cb625c1e82e56140",
+		"TUNNEL_DOMAIN": "remoterm.io",
+		"DNS_SUFFIX": "",
+		"GITHUB_CLIENT_ID": "Ov23li5NNLNc4w9aloMy",
+		"API_ORIGIN": "https://api.remoterm.io",
+		"WEB_ORIGIN": "https://app.remoterm.io",
+		"COOKIE_DOMAIN": ".remoterm.io"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "remoterm",
+			// Created by `task api:db:create` (fills in this id).
+			"database_id": "552be8ff-877d-4deb-89f8-2460e421982d",
+			"migrations_dir": "migrations"
+		}
+	]
+	// Secrets (wrangler secret put <NAME>): GITHUB_CLIENT_SECRET, CF_API_TOKEN, JWT_PRIVATE_KEY
+}

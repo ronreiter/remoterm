@@ -1,8 +1,15 @@
 appId: com.remoterm.app
 productName: Remoterm
+# node-pty is rebuilt for Electron by postinstall (`electron-rebuild -o node-pty`);
+# a full rebuild trips over ssh2's optional native dep cpu-features.
+npmRebuild: false
 directories:
   buildResources: resources
   output: release
+extraResources:
+  # Arch-specific cloudflared (run `npm run fetch-cloudflared` first); notarized with the app.
+  - from: resources/bin/cloudflared-darwin-${arch}
+    to: bin/cloudflared
 mac:
   target: dmg
   icon: resources/icon.icns

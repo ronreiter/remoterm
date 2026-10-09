@@ -14,7 +14,8 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
   const filtered = query
     ? allSessions.filter((s) =>
         s.name.toLowerCase().includes(query.toLowerCase()) ||
-        s.workDir?.toLowerCase().includes(query.toLowerCase())
+        s.workDir?.toLowerCase().includes(query.toLowerCase()) ||
+        s.remote?.deviceName.toLowerCase().includes(query.toLowerCase())
       )
     : allSessions
 
@@ -70,6 +71,9 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
               }`}
             >
               <span className="text-sm font-medium truncate">{s.name}</span>
+              {s.remote && (
+                <span className="text-[11px] text-terminal-subtext truncate">remote · {s.remote.deviceName}</span>
+              )}
               {s.workDir && (
                 <span className="text-[11px] text-terminal-subtext truncate">
                   {s.workDir.replace(/^\/Users\/[^/]+/, '~')}

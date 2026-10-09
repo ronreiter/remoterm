@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --terminal-bg: #232334;
+  --terminal-surface: #2a2a3d;
+  --terminal-text: #cdd6f4;
+  --terminal-subtext: #8b90a8;
+  --terminal-accent: #89b4fa;
+  --terminal-green: #a6e3a1;
+  --terminal-red: #f38ba8;
+  --terminal-border: #3a3a52;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Full-screen terminal: use the dynamic viewport so the mobile keyboard does not hide the prompt. */
+.term-screen {
+  height: 100dvh;
+}
+
+.xterm {
+  height: 100%;
+  padding: 4px;
+}
+
+.xterm-viewport {
+  overscroll-behavior: contain;
+}

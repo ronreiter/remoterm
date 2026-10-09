@@ -7,7 +7,8 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // @remoterm/protocol is a TS-source file: dependency, so it must be bundled, not externalized.
+    plugins: [externalizeDepsPlugin({ exclude: ['@remoterm/protocol'] })],
     build: {
       rollupOptions: {
         input: {
@@ -33,6 +34,7 @@ export default defineConfig({
       __APP_VERSION__: JSON.stringify(pkg.version)
     },
     plugins: [react()],
+    server: { fs: { allow: [resolve(__dirname, '..')] } },
     css: {
       postcss: resolve(__dirname, 'postcss.config.js')
     },

@@ -4,6 +4,7 @@ import { useStore, COLOR_LABELS, ColorLabel, Session } from '../store'
 import SessionItem from './SessionItem'
 import FolderItem from './FolderItem'
 import SettingsModal from './SettingsModal'
+import RemoteGroup from './RemoteGroup'
 import type { ClaudeSession } from '../services/api'
 import iconUrl from '../../../resources/icon.png?url'
 
@@ -44,8 +45,10 @@ const MAX_WIDTH = 600
 const DEFAULT_WIDTH = 288 // w-72
 
 export default function Sidebar() {
-  const { sessions, activeSessionId, createSession, deleteSession, updateSessionName, setActiveSession } =
+  const { sessions: allSessions, activeSessionId, createSession, deleteSession, updateSessionName, setActiveSession } =
     useSessions()
+  // Remote tabs are listed in the Remote group (and the tab bar), never as local sessions.
+  const sessions = allSessions.filter((s) => s.kind !== 'remote')
   const reopenSession = useStore((s) => s.reopenSession)
   const activeTabIds = useStore((s) => s.activeTabIds)
   const lastFinishedAt = useStore((s) => s.lastFinishedAt)
@@ -456,6 +459,9 @@ export default function Sidebar() {
           )}
         </div>
       )}
+
+      {/* Remote: other devices and their running sessions (signed in only) */}
+      <RemoteGroup />
 
       {/* Settings button */}
       <div className="flex-shrink-0 px-3 py-3 border-t border-terminal-border">

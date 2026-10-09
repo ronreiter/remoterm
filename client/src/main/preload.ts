@@ -61,5 +61,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: Electron.IpcRendererEvent, show: boolean) => cb(show)
     ipcRenderer.on('quit-confirm', listener)
     return () => ipcRenderer.removeListener('quit-confirm', listener)
-  }
+  },
+
+  // Remote access (host agent)
+  remoteGetStatus: () => ipcRenderer.invoke(IPC.REMOTE_GET_STATUS),
+  onRemoteStatus: (cb: (status: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: unknown) => cb(status)
+    ipcRenderer.on(IPC.REMOTE_STATUS_CHANGED, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_STATUS_CHANGED, listener)
+  },
+  remoteSignIn: () => ipcRenderer.invoke(IPC.REMOTE_SIGN_IN),
+  remoteSignOut: () => ipcRenderer.invoke(IPC.REMOTE_SIGN_OUT),
+  remoteSetEnabled: (on: boolean) => ipcRenderer.invoke(IPC.REMOTE_SET_ENABLED, on),
+  remoteSetDeviceName: (name: string) => ipcRenderer.invoke(IPC.REMOTE_SET_DEVICE_NAME, name),
+  remoteSetPreventSleep: (on: boolean) => ipcRenderer.invoke(IPC.REMOTE_SET_PREVENT_SLEEP, on),
+  remoteReset: () => ipcRenderer.invoke(IPC.REMOTE_RESET),
+  remoteGetViewers: () => ipcRenderer.invoke(IPC.REMOTE_GET_VIEWERS),
+  onRemoteViewers: (cb: (counts: Record<string, number>) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, counts: Record<string, number>) => cb(counts)
+    ipcRenderer.on(IPC.REMOTE_VIEWERS_CHANGED, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_VIEWERS_CHANGED, listener)
+  },
+  // Remote client (tabs on other devices); tokens stay in the main process.
+  remoteList: () => ipcRenderer.invoke(IPC.REMOTE_LIST),
+  remoteAttach: (req: { tabId: string; deviceId: string; sessionId: string; mode: 'control' | 'view' }) =>
+    ipcRenderer.invoke(IPC.REMOTE_ATTACH, req),
+  remoteTabInput: (tabId: string, data: string) => ipcRenderer.send(IPC.REMOTE_INPUT, tabId, data),
+  remoteTabResize: (tabId: string, cols: number, rows: number) => ipcRenderer.send(IPC.REMOTE_RESIZE, tabId, cols, rows),
+  remoteDetach: (tabId: string) => ipcRenderer.send(IPC.REMOTE_DETACH, tabId),
+  onRemoteTabOutput: (cb: (e: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, e: unknown) => cb(e)
+    ipcRenderer.on(IPC.REMOTE_TAB_OUTPUT, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_TAB_OUTPUT, listener)
+  },
+  onRemoteTabStatus: (cb: (e: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, e: unknown) => cb(e)
+    ipcRenderer.on(IPC.REMOTE_TAB_STATUS, listener)
+    return () => ipcRenderer.removeListener(IPC.REMOTE_TAB_STATUS, listener)
+  },
+  reportSessionBusy: (sessionId: string, busy: boolean) => ipcRenderer.send(IPC.SESSION_BUSY_CHANGED, sessionId, busy)
 })
