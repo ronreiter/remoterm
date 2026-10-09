@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "remoterm-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Once remoterm.io is a zone in your Cloudflare account, uncomment:
+  // "routes": [{ "pattern": "api.remoterm.io", "custom_domain": true }],
+  "vars": {
+    "CF_ACCOUNT_ID": "REPLACE_WITH_ACCOUNT_ID",
+    "CF_ZONE_ID": "REPLACE_WITH_REMOTERM_IO_ZONE_ID",
+    "TUNNEL_DOMAIN": "t.remoterm.io",
+    "DNS_SUFFIX": "t",
+    "GITHUB_CLIENT_ID": "Ov23li5NNLNc4w9aloMy",
+    "API_ORIGIN": "https://api.remoterm.io",
+    "WEB_ORIGIN": "https://app.remoterm.io",
+    "COOKIE_DOMAIN": ".remoterm.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "remoterm",
+      // Run `wrangler d1 create remoterm` and paste the id here.
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+  // Secrets (wrangler secret put <NAME>): GITHUB_CLIENT_SECRET, CF_API_TOKEN, JWT_PRIVATE_KEY
+}
